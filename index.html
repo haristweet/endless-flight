@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ENDLESS FLIGHT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0b0d;--panel:#141418;--line:#2a2a31;--fg:#ebe7dc;--dim:#8d897e;--acc:#e8c55a;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:"DotGothic16",system-ui,sans-serif;overflow:hidden}
+button,input{font:inherit;color:inherit}
+#app{display:grid;grid-template-columns:1fr 360px;height:100vh;height:100dvh}
+#stage{position:relative;background:#000;min-width:0;min-height:0}
+#out{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+#bar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;
+  background:rgba(20,20,24,.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;padding:5px 6px;white-space:nowrap}
+#bar button{width:38px;height:38px;border-radius:50%;border:0;background:transparent;cursor:pointer;font-size:17px}
+#bar button:hover{background:rgba(255,255,255,.1)}
+#bar .t{padding:0 10px 0 4px;font-size:14px;color:var(--dim);min-width:120px}
+#panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex:none}
+.tabs button{flex:1;border:0;background:none;padding:14px 0;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--fg);border-bottom-color:var(--acc)}
+.body{flex:1;overflow:auto;padding:6px 18px 24px}
+.page{display:none}.page.on{display:block}
+h3{font-size:13px;font-weight:normal;color:var(--dim);margin:18px 0 8px;letter-spacing:.05em}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#1b1b20;border-radius:8px;padding:8px 12px;cursor:pointer;min-height:38px}
+.chip.on{border-color:var(--acc);background:#2a2618;color:#fff}
+.row{display:flex;gap:6px;align-items:center}
+input[type=number]{width:110px;background:#1b1b20;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px}
+.note{font-size:12px;color:var(--dim);line-height:1.7;margin:10px 0 0}
+.big{width:100%;margin-top:18px;padding:14px;border-radius:10px;border:0;background:var(--acc);color:#1a1606;font-size:16px;cursor:pointer}
+.big:disabled{opacity:.5;cursor:default}
+.prog{margin-top:14px;display:none}
+.prog.on{display:block}
+.meter{height:8px;background:#26262c;border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--acc)}
+.prog .t{font-size:13px;color:var(--dim);margin:8px 0}
+.ghost{border:1px solid var(--line);background:none;border-radius:8px;padding:8px 14px;cursor:pointer}
+.ver{font-size:11px;color:#55534d;margin-top:28px}
+.lock .seg,.lock .row,.lock #bar{pointer-events:none;opacity:.45}
+@media (max-width:820px){
+  #app{grid-template-columns:1fr}
+  #stage{height:100vh;height:100dvh}
+  #panel{position:fixed;left:0;right:0;bottom:0;border-left:0;border-top:1px solid var(--line);flex-direction:column-reverse;z-index:5;
+    padding-bottom:env(safe-area-inset-bottom);background:rgba(20,20,24,.97)}
+  .tabs{border-bottom:0;border-top:1px solid var(--line)}
+  .tabs button{border-bottom:0;border-top:2px solid transparent}
+  .tabs button.on{border-top-color:var(--acc)}
+  #panel:not(.open) .tabs button.on{border-top-color:transparent;color:var(--dim)}
+  .body{max-height:0;padding-top:0;padding-bottom:0;transition:max-height .22s ease}
+  #panel.open .body{max-height:58vh;max-height:58dvh;padding-top:6px;padding-bottom:18px}
+  #bar{bottom:calc(66px + env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="stage">
+    <canvas id="out" width="1440" height="1080"></canvas>
+    <div id="bar">
+      <button id="play" title="再生/一時停止">❚❚</button>
+      <button id="restart" title="最初から">↺</button>
+      <span class="t" id="clock">0:00</span>
+    </div>
+  </main>
+  <aside id="panel" class="open">
+    <nav class="tabs">
+      <button data-tab="look" class="on">見た目</button>
+      <button data-tab="walk">飛び方</button>
+      <button data-tab="out">書き出し</button>
+    </nav>
+    <div class="body">
+      <section class="page on" id="p-look">
+        <h3>画面の比率</h3><div class="seg" data-key="aspect"></div>
+        <h3>景色（選んだものを順に巡ります）</h3><div class="seg" id="scenes"></div>
+        <h3>描き方</h3><div class="seg" data-key="style"></div>
+        <h3>線の色（線画のとき）</h3><div class="seg" data-key="line"></div>
+        <h3>視点</h3><div class="seg" data-key="view"></div>
+        <h3>画面の飾り</h3><div class="seg" data-key="deco"></div>
+        <h3>画素の粗さ</h3><div class="seg" data-key="pixel"></div>
+      </section>
+      <section class="page" id="p-walk">
+        <h3>速さ</h3><div class="seg" data-key="speed"></div>
+        <h3>景色が変わる間隔</h3><div class="seg" data-key="regionLen"></div>
+        <h3>航路の番号（シード）</h3>
+        <div class="row"><input type="number" id="seed" min="1" max="999999"><button class="chip" id="dice">別の航路</button></div>
+        <p class="note">同じ番号なら、何度書き出しても同じ航路になります。景色・速さ・間隔・番号を変えると最初から飛び直します。</p>
+      </section>
+      <section class="page" id="p-out">
+        <h3>大きさ</h3><div class="seg" id="res"></div>
+        <h3>音（MP3・M4A など）</h3>
+        <div class="row"><label class="chip" style="display:inline-flex;align-items:center">音のファイルを選ぶ<input type="file" id="afile" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" hidden></label><button class="chip" id="aclear" style="display:none">外す</button></div>
+        <p class="note" id="ainfo">入れると、その音付きで書き出します。長さは曲に合わせます。曲より長くすると頭から繰り返し、どちらの場合も最後の1.5秒で音を小さくして終えます。この画面に音のファイルを放り込んでも入ります。</p>
+        <div id="lyrbox" style="display:none">
+          <h3>歌詞</h3><div class="seg" data-key="lyrics"></div>
+          <div class="row" style="margin-top:6px"><label class="chip" style="display:inline-flex;align-items:center">歌詞のファイルを選ぶ<input type="file" id="lfile" accept=".lrc,.srt,.vtt,text/plain" hidden></label></div>
+          <p class="note" id="linfo"></p>
+        </div>
+        <h3>長さ</h3>
+        <div class="seg" data-key="minutes"></div>
+        <div class="row" style="margin-top:6px"><input type="text" id="mins" inputmode="decimal" autocomplete="off" style="width:110px;background:#1b1b20;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px"><span class="note" style="margin:0">3:19 のように 分:秒 で入れられます</span></div>
+        <h3>なめらかさ</h3><div class="seg" data-key="fps"></div>
+        <button class="big" id="go">MP4 を書き出す</button>
+        <div class="prog" id="prog">
+          <div class="meter"><i id="meter"></i></div>
+          <div class="t" id="progt"></div>
+          <button class="ghost" id="cancel">中止</button>
+        </div>
+        <p class="note">今の設定のまま、飛び立ちから書き出します。プレビューより速く書き出せますが、書き出し中はこのタブを前に出したままにしてください。</p>
+        <p class="ver" id="ver"></p>
+      </section>
+    </div>
+  </aside>
+</div>
+<script src="mp4-muxer.js"></script>
+<script>
+'use strict';
+const VERSION = '1.0.0';
+
+// ---------- 乱数・小道具 ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hash(...ns){let h=0x811c9dc5;for(const n of ns){h=Math.imul(h^(n|0),0x01000193);h^=h>>>15;h=Math.imul(h,0x85ebca6b);h^=h>>>13;}return h>>>0;}
+const fdiv=(a,b)=>Math.floor(a/b), fmod=(a,b)=>((a%b)+b)%b;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v, lerp=(a,b,t)=>a+(b-a)*t, smooth=t=>t*t*(3-2*t);
+
+// ---------- 景色（区域）と航路 ----------
+const KINDS={
+  stars:{name:'星の海',far:800,line:[140,210,255],acc:[120,200,255],
+    msgs:['前方に 小惑星帯','遠くに 惑星が 見える','星図と 一致','重力の 揺らぎ あり','恒星風を 観測']},
+  trench:{name:'戦艦の溝',far:380,line:[110,255,140],acc:[255,190,90],
+    msgs:['戦艦の 表面に 降下','砲台は 沈黙している','溝の 奥へ 進む','排熱口まで あと少し','高度を 下げろ']},
+  horizon:{name:'地平線',far:520,line:[255,120,210],acc:[255,130,200],
+    msgs:['地表を 低く飛ぶ','前方に 柱','高度を 保て','見知らぬ 惑星の 地表だ','大気は 安定']},
+  tunnel:{name:'トンネル',far:300,line:[255,200,90],acc:[170,150,255],
+    msgs:['トンネルに 突入','壁に 気をつけろ','出口は まだ 見えない','空間が 歪んでいる','速度 そのまま']},
+};
+const KIND_ORDER=['stars','trench','horizon','tunnel'];
+const COMMON_MSGS=['航路 良好','レーダーに 反応なし','エネルギー 正常','こちら管制、通信 良好','計器 異常なし','速度を 保て'];
+const SEG=60;
+const C=(r,g,b)=>[r/255,g/255,b/255];
+
+class Region{
+  constructor(seed,idx,kind){
+    this.seed=seed;this.idx=idx;this.kind=kind;this.K=KINDS[kind];
+    const r=mulberry32(hash(seed,idx,77));
+    const A={stars:[9,6],trench:[2.6,1.3],horizon:[11,1.6],tunnel:[12,7]}[kind];
+    const F={stars:.004,trench:.01,horizon:.006,tunnel:.009}[kind];
+    this.base={stars:0,trench:3.8,horizon:4.2,tunnel:0}[kind];
+    // 航路は正弦波の和
+    this.wx=[.6,.3,.1].map((k,i)=>({a:A[0]*k,f:F*(1+i*1.7)*(.8+r()*.4),p:r()*6.283}));
+    this.wy=[.7,.3].map((k,i)=>({a:A[1]*k,f:F*(1.1+i*1.9)*(.8+r()*.4),p:r()*6.283}));
+    // 区域ごとの色（同じ景色でも区域ごとに少し変える）
+    const pick=a=>a[(r()*a.length)|0];
+    this.pal={
+      stars:{rock:pick([C(120,110,100),C(100,96,110),C(130,104,84)]),planet:[C(70,120,220),C(220,130,70),C(160,90,200),C(80,180,140),C(210,190,120)]},
+      trench:{hull:pick([C(118,124,136),C(130,126,118),C(100,112,124)]),dark:C(62,66,76),light:pick([C(255,190,90),C(255,90,70),C(120,220,255)])},
+      horizon:pick([
+        {g:[C(232,190,70),C(70,170,80)],sky:[C(255,170,120),C(70,60,160)],obj:C(240,240,250),gem:C(120,220,255)},
+        {g:[C(80,200,220),C(40,90,170)],sky:[C(255,200,240),C(40,30,100)],obj:C(255,150,90),gem:C(255,240,120)},
+        {g:[C(210,90,160),C(90,40,120)],sky:[C(255,190,120),C(30,20,60)],obj:C(120,240,200),gem:C(255,255,255)},
+      ]),
+      tunnel:pick([[C(60,80,200),C(120,60,190)],[C(40,150,160),C(30,70,130)],[C(190,70,90),C(90,30,90)]]),
+    }[kind];
+    this.segs=new Map();
+  }
+  px(z){let s=0;for(const w of this.wx)s+=w.a*Math.sin(z*w.f+w.p);return s;}
+  py(z){let s=this.base;for(const w of this.wy)s+=w.a*Math.sin(z*w.f+w.p);return s;}
+  seg(i){let s=this.segs.get(i);if(!s){s=buildSeg(this,i);this.segs.set(i,s);}return s;}
+  prune(cur){for(const k of this.segs.keys())if(k<cur-3)this.segs.delete(k);}
+}
+
+// 三角形を並べる入れ物。bary の各成分が 0 に近い所が辺。隠したい辺は成分に 1 を足す
+class Mesh{
+  constructor(){this.v=[];}
+  tri(a,b,c,col,glow=0,hide=0){
+    const h=[hide&1?1:0,hide&2?1:0,hide&4?1:0];
+    [[a,1,0,0],[b,0,1,0],[c,0,0,1]].forEach(([p,x,y,z])=>this.v.push(p[0],p[1],p[2],col[0],col[1],col[2],x+h[0],y+h[1],z+h[2],glow));
+  }
+  quad(a,b,c,d,col,glow=0){this.tri(a,b,c,col,glow,2);this.tri(a,c,d,col,glow,4);}
+  box(x0,y0,z0,x1,y1,z1,col,glow=0){
+    const p=(i,j,k)=>[i?x1:x0,j?y1:y0,k?z1:z0];
+    this.quad(p(0,0,0),p(1,0,0),p(1,1,0),p(0,1,0),col,glow);this.quad(p(0,0,1),p(1,0,1),p(1,1,1),p(0,1,1),col,glow);
+    this.quad(p(0,0,0),p(0,0,1),p(0,1,1),p(0,1,0),col,glow);this.quad(p(1,0,0),p(1,0,1),p(1,1,1),p(1,1,0),col,glow);
+    this.quad(p(0,1,0),p(1,1,0),p(1,1,1),p(0,1,1),col,glow);this.quad(p(0,0,0),p(1,0,0),p(1,0,1),p(0,0,1),col,glow);
+  }
+  sphere(cx,cy,cz,R,nl,nb,col){
+    const P=(i,j)=>{const th=i/nl*6.2832,ph=j/nb*Math.PI;return[cx+R*Math.sin(ph)*Math.cos(th),cy+R*Math.cos(ph),cz+R*Math.sin(ph)*Math.sin(th)];};
+    for(let j=0;j<nb;j++)for(let i=0;i<nl;i++){
+      if(j===0)this.tri(P(i,0),P(i+1,1),P(i,1),col);
+      else if(j===nb-1)this.tri(P(i,j),P(i+1,j),P(i,j+1),col);
+      else this.quad(P(i,j),P(i+1,j),P(i+1,j+1),P(i,j+1),col);
+    }
+  }
+  ring(cx,cy,cz,r0,r1,n,col,tilt){
+    const P=(i,r)=>{const t=i/n*6.2832;return[cx+r*Math.cos(t),cy+r*Math.sin(t)*tilt,cz+r*Math.sin(t)];};
+    for(let i=0;i<n;i++)this.quad(P(i,r0),P(i+1,r0),P(i+1,r1),P(i,r1),col);
+  }
+  rock(cx,cy,cz,R,col,r){
+    const t=(1+Math.sqrt(5))/2,V=[[-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],[0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],[t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]]
+      .map(v=>{const l=Math.hypot(...v),k=R*(.7+r()*.5)/l;return[cx+v[0]*k,cy+v[1]*k,cz+v[2]*k];});
+    const F=[[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+    for(const f of F){const k=.85+r()*.3;this.tri(V[f[0]],V[f[1]],V[f[2]],col.map(c=>c*k));}
+  }
+  oct(cx,cy,cz,R,H,col,glow=0){
+    const T=[cx,cy+H,cz],B=[cx,cy-H,cz],S=[[cx+R,cy,cz],[cx,cy,cz+R],[cx-R,cy,cz],[cx,cy,cz-R]];
+    for(let i=0;i<4;i++){const a=S[i],b=S[(i+1)%4];this.tri(T,a,b,col,glow);this.tri(B,b,a,col.map(c=>c*.7),glow);}
+  }
+}
+
+// 区域の一区切り（奥行き SEG）を組み立てる。z は負の方向へ進む
+function buildSeg(R,i){
+  const m=new Mesh(),st=[],objs=[],r=mulberry32(hash(R.seed,R.idx,i,991)),P=R.pal;
+  const z0=-i*SEG,z1=-(i+1)*SEG,rz=()=>z0-r()*SEG;
+  // 航路から離れた位置を選ぶ
+  const away=(z,min,max)=>{const a=r()*6.2832,d=min+r()*(max-min);return[R.px(z)+Math.cos(a)*d,R.py(z)+Math.sin(a)*d];};
+  if(R.kind==='stars'){
+    for(let k=0;k<260;k++){const z=rz(),t=r();
+      st.push(R.px(z)+(r()-.5)*260,R.py(z)+(r()-.5)*180,z,...(t<.15?[1,.85,.6]:t<.3?[.6,.75,1]:[1,1,1]),1+r()*2.2);}
+    const n=r()<.45?0:(r()*12)|0;
+    for(let k=0;k<n;k++){const z=rz(),[x,y]=away(z,7,45),s=.8+r()*3;m.rock(x,y,z,s,P.rock,r);objs.push({x,z,s});}
+    if(r()<.45&&i%3===0){
+      const z=z0-SEG/2,side=(i/3)%2?1:-1,rad=40+r()*80,x=R.px(z)+side*(160+rad*1.8+r()*120),y=-60+r()*150,col=P.planet[(r()*P.planet.length)|0];
+      m.sphere(x,y,z,rad,20,12,col);
+      if(r()<.45)m.ring(x,y,z,rad*1.35,rad*1.9,40,col.map(c=>c*.8+.15),.25+r()*.3);
+      objs.push({x,z,s:rad,planet:1});
+    }
+  }else if(R.kind==='trench'){
+    const W=6,H=8,hull=P.hull,dk=P.dark;
+    for(let z=z0;z>z1;z-=5){
+      for(let x=-W;x<W;x+=3){const lit=r()<.06;m.quad([x,0,z],[x+3,0,z],[x+3,0,z-5],[x,0,z-5],lit?P.light:dk,lit?1:0);}
+      for(const sd of[-1,1]){
+        const x=sd*W;
+        for(let y=0;y<H;y+=4){
+          m.quad([x,y,z],[x,y+4,z],[x,y+4,z-5],[x,y,z-5],hull.map(c=>c*(.85+r()*.2)));
+          if(r()<.35){const d=.3+r()*1,y0=y+r()*2,zz=z-r()*3;m.box(x,y0,zz,x-sd*d,y0+.6+r()*1.6,zz-1-r()*1.5,hull.map(c=>c*.9));}
+        }
+        if(r()<.25)m.quad([x-sd*.05,5.6,z-1],[x-sd*.05,6.2,z-1],[x-sd*.05,6.2,z-2.2],[x-sd*.05,5.6,z-2.2],P.light,1);
+      }
+    }
+    for(const sd of[-1,1]){
+      for(let z=z0;z>z1;z-=10)for(let x=W;x<46;x+=10)m.quad([sd*x,H,z],[sd*(x+10),H,z],[sd*(x+10),H,z-10],[sd*x,H,z-10],hull.map(c=>c*(.7+r()*.15)));
+      for(let k=0;k<6;k++){const x=sd*(8+r()*34),z=rz(),w=1+r()*3,h=1+r()*7;m.box(x,H,z,x+w,H+h,z-w,hull.map(c=>c*(.8+r()*.25)));objs.push({x,z,s:w});}
+    }
+    if(i%2===0&&r()<.6){const z=rz();m.box(-W,7.2,z,W,8,z-1.4,hull.map(c=>c*.8));objs.push({x:0,z,s:W,beam:1});}
+  }else if(R.kind==='horizon'){
+    const T=10;
+    for(let z=z0;z>z1;z-=T)for(let x=-400;x<400;x+=T)
+      m.quad([x,0,z],[x+T,0,z],[x+T,0,z-T],[x,0,z-T],P.g[(Math.floor(x/T)+Math.floor(z/T))&1]);
+    const n=4+((r()*6)|0);
+    for(let k=0;k<n;k++){
+      const z=rz(),sd=r()<.5?-1:1,x=R.px(z)+sd*(7+r()*70),t=r();
+      if(t<.55){const w=1.2+r()*1.4,h=12+r()*26;m.box(x-w,0,z-w,x+w,h,z+w,P.obj.map(c=>c*(.75+r()*.25)));}
+      else if(t<.8){const y=6+r()*10;m.oct(x,y,z,1.6+r()*1.4,2.4+r()*2,P.gem,0);}
+      else{m.box(x-.4,0,z-.4,x+.4,4,z+.4,C(120,80,50));m.oct(x,5.5,z,2.2,2.6,P.g[1].map(c=>c*.8));}
+      objs.push({x,z,s:2});
+    }
+  }else{
+    const N=12,RA=7,STEP=3,cols=P;
+    const ring=z=>{const cx=R.px(z),cy=R.py(z);return k=>{const t=k/N*6.2832;return[cx+Math.cos(t)*RA,cy+Math.sin(t)*RA,z];};};
+    const ringIn=(z,rr)=>{const cx=R.px(z),cy=R.py(z);return k=>{const t=k/N*6.2832;return[cx+Math.cos(t)*rr,cy+Math.sin(t)*rr,z];};};
+    for(let k=0;k<SEG/STEP;k++){
+      const za=z0-k*STEP,zb=za-STEP,A=ring(za),B=ring(zb),g=i*(SEG/STEP)+k;
+      for(let j=0;j<N;j++){
+        const col=cols[(g>>1)&1].map(c=>c*(j%2?.85:1));
+        m.quad(A(j),A(j+1),B(j+1),B(j),r()<.02?C(255,230,160):col,0);
+      }
+      if(g%7===0){const I=ringIn(za,RA-.35),O=ringIn(za,RA-.05),I2=ringIn(za-.6,RA-.35);
+        for(let j=0;j<N;j++){m.quad(I(j),I(j+1),I2(j+1),I2(j),C(255,220,140),1);m.quad(O(j),O(j+1),I(j+1),I(j),C(255,220,140),1);}}
+    }
+  }
+  return{v:new Float32Array(m.v),st:new Float32Array(st),objs};
+}
+
+// ---------- 自動で飛ぶ ----------
+const SPEEDS={slow:22,mid:36,fast:58};
+class Sim{
+  constructor(o){
+    this.o=o;this.seed=o.seed>>>0;this.r=mulberry32(hash(this.seed,5));
+    this.speed=SPEEDS[o.speed]||36;this.dur=o.regionLen||60;
+    this.kinds=KIND_ORDER.filter(k=>o.scenes.includes(k));if(!this.kinds.length)this.kinds=['stars'];
+    this.time=0;this.rt=0;this.ri=0;this.region=this.make(0);this.dist=0;
+    this.log=[];this.fade=0;this.nextMsg=5;
+    this.banner={text:'区域 1',sub:this.region.K.name,t0:0};
+    this.say(`${this.region.K.name}を 飛ぶ`);
+  }
+  make(i){return new Region(this.seed,i,this.kinds[i%this.kinds.length]);}
+  say(text){this.log.push({text,t:this.time});if(this.log.length>8)this.log.shift();}
+  get z(){return-this.rt*this.speed;}
+  update(dt){
+    this.time+=dt;this.rt+=dt;this.dist+=this.speed*dt;
+    while(this.rt>=this.dur){
+      this.rt-=this.dur;this.ri++;this.region=this.make(this.ri);
+      this.banner={text:`区域 ${this.ri+1}`,sub:this.region.K.name,t0:this.time-this.rt};
+      this.say(`区域 ${this.ri+1}　${this.region.K.name}に 入った`);
+    }
+    this.fade=clamp(Math.max(1-this.rt/1.1,1-(this.dur-this.rt)/1.1),0,1);
+    if(this.ri===0&&this.rt<1.1)this.fade=0;
+    while(this.time>=this.nextMsg){
+      const L=this.r()<.6?this.region.K.msgs:COMMON_MSGS;
+      let m=L[(this.r()*L.length)|0];if(m===this.log.at(-1)?.text)m=COMMON_MSGS[(this.r()*COMMON_MSGS.length)|0];
+      this.say(m);this.nextMsg+=8+this.r()*12;
+    }
+    this.region.prune(Math.floor(-this.z/SEG));
+  }
+  // 機体の位置・向き・傾き
+  pose(){
+    const R=this.region,z=this.z,P=t=>[R.px(t),R.py(t),t];
+    const c=(R.px(z-8)-2*R.px(z)+R.px(z+8))/64;
+    return{R,z,P,ship:P(z),bank:clamp(-c*320,-.55,.55)};
+  }
+}
+
+// ---------- 3D 描画（WebGL2） ----------
+const VS=`#version 300 es
+in vec3 aPos;in vec3 aCol;in vec3 aBary;in float aGlow;uniform mat4 uVP,uModel;
+out vec3 vCol,vBary,vW;out float vGlow;
+void main(){vec4 w=uModel*vec4(aPos,1.);vW=w.xyz;vCol=aCol;vBary=aBary;vGlow=aGlow;gl_Position=uVP*w;}`;
+const FS=`#version 300 es
+precision highp float;
+in vec3 vCol,vBary,vW;in float vGlow;
+uniform vec3 uEye,uFog,uLine;uniform float uFar,uWire,uLineW,uCrisp,uAuto;
+out vec4 o;
+float lineA(float d){float w=uLineW*.5;return uCrisp>.5?step(d,w):1.-smoothstep(w-.6,w+.6,d);}
+void main(){
+  float d=length(vW-uEye),fog=smoothstep(uFar*.45,uFar,d);
+  vec3 fw=max(fwidth(vBary),vec3(1e-6)),e=vBary/fw;float m=min(min(e.x,e.y),e.z);
+  if(uWire>.5){
+    vec3 lc=uAuto>.5?min(vCol*1.3+.12,vec3(1.)):uLine;
+    o=vec4(lc*lineA(m)*(1.-fog),1.);return;
+  }
+  vec3 n=normalize(cross(dFdx(vW),dFdy(vW)));if(dot(n,uEye-vW)<0.)n=-n;
+  float l=.32+.6*max(dot(n,normalize(vec3(.4,.85,.3))),0.)+.18*max(dot(n,normalize(uEye-vW)),0.);
+  vec3 c=vGlow>.5?vCol:vCol*l*mix(.72,1.,smoothstep(0.,1.6,m));
+  o=vec4(mix(c,uFog,fog),1.);
+}`;
+const SKY_VS=`#version 300 es
+const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
+out vec2 vN;void main(){vN=P[gl_VertexID];gl_Position=vec4(vN,.9999,1.);}`;
+const SKY_FS=`#version 300 es
+precision highp float;in vec2 vN;uniform mat4 uInv;uniform vec3 uEye,uHor,uZen,uGnd;out vec4 o;
+void main(){vec4 p=uInv*vec4(vN,1.,1.);vec3 d=normalize(p.xyz/p.w-uEye);
+  vec3 c=d.y>0.?mix(uHor,uZen,smoothstep(0.,.45,d.y)):mix(uHor,uGnd,smoothstep(0.,.04,-d.y));o=vec4(c,1.);}`;
+const PVS=`#version 300 es
+in vec3 aPos;in vec3 aCol;in float aSize;uniform mat4 uVP;uniform vec3 uEye;uniform float uRel,uPx,uFar;
+out vec3 vCol;out float vA;
+void main(){vec3 w=uRel>.5?uEye+aPos*uFar*.9:aPos;gl_Position=uVP*vec4(w,1.);float d=length(w-uEye);
+  gl_PointSize=uRel>.5?aSize*uPx:clamp(aSize*uPx*40./max(d,1.),1.,aSize*uPx*3.);
+  vCol=aCol;vA=uRel>.5?1.:1.-smoothstep(uFar*.6,uFar,d);}`;
+const PFS=`#version 300 es
+precision highp float;in vec3 vCol;in float vA;out vec4 o;
+void main(){vec2 q=gl_PointCoord*2.-1.;float r=dot(q,q);if(r>1.)discard;o=vec4(vCol*vA*(1.-r*.6),1.);}`;
+
+function persp(fy,as,n,f){const t=1/Math.tan(fy/2),nf=1/(n-f);return[t/as,0,0,0,0,t,0,0,0,0,(f+n)*nf,-1,0,0,2*f*n*nf,0];}
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l);},dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+function lookAt(e,c,up){
+  const z=norm(sub(e,c)),x=norm(cross(up,z)),y=cross(z,x);
+  return[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,e),-dot(y,e),-dot(z,e),1];
+}
+function mul(a,b){const o=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[i+k*4]*b[k+j*4];o[i+j*4]=s;}return o;}
+function inv(m){
+  const a=m,o=new Float32Array(16);
+  const b00=a[0]*a[5]-a[1]*a[4],b01=a[0]*a[6]-a[2]*a[4],b02=a[0]*a[7]-a[3]*a[4],b03=a[1]*a[6]-a[2]*a[5],b04=a[1]*a[7]-a[3]*a[5],b05=a[2]*a[7]-a[3]*a[6];
+  const b06=a[8]*a[13]-a[9]*a[12],b07=a[8]*a[14]-a[10]*a[12],b08=a[8]*a[15]-a[11]*a[12],b09=a[9]*a[14]-a[10]*a[13],b10=a[9]*a[15]-a[11]*a[13],b11=a[10]*a[15]-a[11]*a[14];
+  const d=1/(b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06);
+  o[0]=(a[5]*b11-a[6]*b10+a[7]*b09)*d;o[1]=(a[2]*b10-a[1]*b11-a[3]*b09)*d;o[2]=(a[13]*b05-a[14]*b04+a[15]*b03)*d;o[3]=(a[10]*b04-a[9]*b05-a[11]*b03)*d;
+  o[4]=(a[6]*b08-a[4]*b11-a[7]*b07)*d;o[5]=(a[0]*b11-a[2]*b08+a[3]*b07)*d;o[6]=(a[14]*b02-a[12]*b05-a[15]*b01)*d;o[7]=(a[8]*b05-a[10]*b02+a[11]*b01)*d;
+  o[8]=(a[4]*b10-a[5]*b08+a[7]*b06)*d;o[9]=(a[1]*b08-a[0]*b10-a[3]*b06)*d;o[10]=(a[12]*b04-a[13]*b02+a[15]*b00)*d;o[11]=(a[9]*b02-a[8]*b04-a[11]*b00)*d;
+  o[12]=(a[5]*b07-a[4]*b09-a[6]*b06)*d;o[13]=(a[0]*b09-a[1]*b07+a[2]*b06)*d;o[14]=(a[13]*b01-a[12]*b03-a[14]*b00)*d;o[15]=(a[8]*b03-a[9]*b01+a[10]*b00)*d;
+  return o;
+}
+// 傾き（roll）を入れた上向き
+const rollUp=(fwd,b)=>{const x=norm(cross([0,1,0],fwd.map(v=>-v))),y=cross(fwd.map(v=>-v),x);return norm([y[0]*Math.cos(b)+x[0]*Math.sin(b),y[1]*Math.cos(b)+x[1]*Math.sin(b),y[2]*Math.cos(b)+x[2]*Math.sin(b)]);};
+
+// 自機（機首は -z）
+function shipMesh(acc){
+  const m=new Mesh(),body=C(214,220,230),dark=C(80,86,100),wing=acc.map(v=>v/255*.8+.15),glass=C(40,80,140),fire=C(255,150,60);
+  const N=[0,.05,-3.4],T=[0,.75,1.0],L=[-.8,.05,1.2],Rr=[.8,.05,1.2],B=[0,-.45,1.2],G=[0,.55,-1.0];
+  m.tri(N,G,L,body);m.tri(N,Rr,G,body);m.tri(G,T,L,glass);m.tri(G,Rr,T,glass);m.tri(N,L,B,dark);m.tri(N,B,Rr,dark);
+  m.quad(T,Rr,B,L,dark);
+  for(const s of[-1,1]){
+    // 上反角つきの翼
+    const a=[s*.6,.05,-.4],b=[s*3.4,.55,1.25],c=[s*.7,.05,1.1],d=[s*3.4,.45,.75];
+    m.tri(a,d,c,wing);m.tri(d,b,c,wing);m.tri(a,c,d,wing.map(v=>v*.6));m.tri(d,c,b,wing.map(v=>v*.6));
+    // エンジン
+    m.box(s*1.2,-.25,-.2,s*1.75,.25,1.45,body.map(v=>v*.8));
+    m.quad([s*1.25,-.2,1.47],[s*1.7,-.2,1.47],[s*1.7,.2,1.47],[s*1.25,.2,1.47],fire,1);
+    // 翼端の尾翼
+    m.tri([s*3.4,.55,1.25],[s*3.45,1.25,1.55],[s*3.4,.45,.75],wing);
+  }
+  m.quad([-.45,.3,1.25],[.45,.3,1.25],[.45,-.3,1.25],[-.45,-.3,1.25],fire,1);
+  return new Float32Array(m.v);
+}
+
+class Space3D{
+  constructor(){
+    this.cv=document.createElement('canvas');
+    const gl=this.gl=this.cv.getContext('webgl2',{antialias:false,preserveDrawingBuffer:true,alpha:false});
+    if(!gl)throw new Error('WebGL2');
+    const prog=(vs,fs)=>{const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o;};
+      const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);
+      const u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const a=gl.getActiveUniform(p,i);u[a.name]=gl.getUniformLocation(p,a.name);}
+      return{p,u,a:n2=>gl.getAttribLocation(p,n2)};};
+    this.main=prog(VS,FS);this.sky=prog(SKY_VS,SKY_FS);this.pts=prog(PVS,PFS);
+    this.vao=gl.createVertexArray();
+    // 遠くの星（向きだけ）
+    const r=mulberry32(4242),bg=[];
+    for(let i=0;i<1400;i++){const u=r()*2-1,t=r()*6.2832,s=Math.sqrt(1-u*u),b=.35+r()*.65;bg.push(s*Math.cos(t),u,s*Math.sin(t),b,b,b*(.9+r()*.2),.8+r()*1.6);}
+    this.bg=this.buf(new Float32Array(bg));this.bgN=bg.length/7;
+    this.ships=new Map();this.cache=new Map();this.region=null;
+  }
+  buf(data){const gl=this.gl,b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);return b;}
+  attribs(P,list,stride){
+    const gl=this.gl;let off=0;
+    for(let i=0;i<8;i++)gl.disableVertexAttribArray(i);
+    for(const[n,sz]of list){const l=P.a(n);if(l>=0){gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,sz,gl.FLOAT,false,stride*4,off*4);}off+=sz;}
+  }
+  segGL(R,i){
+    if(this.region!==R){for(const s of this.cache.values()){this.gl.deleteBuffer(s.vb);if(s.sb)this.gl.deleteBuffer(s.sb);}this.cache.clear();this.region=R;}
+    let s=this.cache.get(i);
+    if(!s){const d=R.seg(i);s={vb:this.buf(d.v),n:d.v.length/10,sb:d.st.length?this.buf(d.st):null,sn:d.st.length/7};this.cache.set(i,s);}
+    return s;
+  }
+  render(w,h,sim,look){
+    const gl=this.gl,cv=this.cv;
+    if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+    gl.viewport(0,0,w,h);gl.bindVertexArray(this.vao);
+    const{R,z,P,ship,bank}=sim.pose(),K=R.K,far=K.far;
+    // カメラ
+    let eye,target,up,showShip=look.view==='chase';
+    if(showShip){
+      const back=P(z+10),lift=R.kind==='trench'?1.6:R.kind==='tunnel'?2.2:3.0;
+      eye=[back[0],back[1]+lift,back[2]];const t=P(z-30);target=[t[0],t[1]+lift*.15,t[2]];
+      up=rollUp(norm(sub(target,eye)),bank*.22);
+    }else{
+      eye=[ship[0],ship[1]+.2,ship[2]];const t=P(z-22);target=[t[0],t[1]+.2,t[2]];
+      up=rollUp(norm(sub(target,eye)),bank*.55);
+    }
+    const proj=persp((look.aspect==='16:9'?58:62)*Math.PI/180,w/h,.1,far),vp=mul(proj,lookAt(eye,target,up));
+    const wire=look.wire,pal=R.pal;
+    // 空
+    let hor=[0,0,0],zen=[0,0,0],fog=[0,0,0];
+    if(R.kind==='horizon'&&!wire){hor=pal.sky[0];zen=pal.sky[1];fog=hor;}
+    else if(R.kind==='tunnel'&&!wire){fog=pal[1].map(c=>c*.15);}
+    gl.disable(gl.DEPTH_TEST);gl.depthMask(false);gl.disable(gl.BLEND);
+    for(let i=0;i<8;i++)gl.disableVertexAttribArray(i);
+    gl.useProgram(this.sky.p);
+    gl.uniformMatrix4fv(this.sky.u.uInv,false,inv(vp));gl.uniform3fv(this.sky.u.uEye,eye);
+    gl.uniform3fv(this.sky.u.uHor,hor);gl.uniform3fv(this.sky.u.uZen,zen);gl.uniform3fv(this.sky.u.uGnd,fog);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    const px=h/540,pts=this.pts;
+    const drawPts=(b,n,rel)=>{gl.useProgram(pts.p);gl.bindBuffer(gl.ARRAY_BUFFER,b);this.attribs(pts,[['aPos',3],['aCol',3],['aSize',1]],7);
+      gl.uniformMatrix4fv(pts.u.uVP,false,vp);gl.uniform3fv(pts.u.uEye,eye);gl.uniform1f(pts.u.uRel,rel);gl.uniform1f(pts.u.uPx,px);gl.uniform1f(pts.u.uFar,far);
+      gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.drawArrays(gl.POINTS,0,n);gl.disable(gl.BLEND);};
+    if(R.kind!=='horizon'||wire)drawPts(this.bg,this.bgN,1);
+    // 区域の景色
+    gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.clear(gl.DEPTH_BUFFER_BIT);
+    const M=this.main,u=M.u;gl.useProgram(M.p);
+    gl.uniformMatrix4fv(u.uVP,false,vp);gl.uniformMatrix4fv(u.uModel,false,[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+    gl.uniform3fv(u.uEye,eye);gl.uniform3fv(u.uFog,fog);gl.uniform3fv(u.uLine,look.line.map(v=>v/255));
+    gl.uniform1f(u.uFar,far);gl.uniform1f(u.uWire,wire?1:0);gl.uniform1f(u.uLineW,Math.max(1,h/300));
+    gl.uniform1f(u.uCrisp,look.crisp?1:0);gl.uniform1f(u.uAuto,look.autoLine?1:0);
+    const cur=Math.floor(-z/SEG),ahead=Math.ceil(far/SEG)+1,segs=[];
+    for(let i=Math.max(0,cur-1);i<=cur+ahead;i++)segs.push([i,this.segGL(R,i)]);
+    for(const k of[...this.cache.keys()])if(k<cur-2){const s=this.cache.get(k);gl.deleteBuffer(s.vb);if(s.sb)gl.deleteBuffer(s.sb);this.cache.delete(k);}
+    const lay=[['aPos',3],['aCol',3],['aBary',3],['aGlow',1]];
+    for(const[,s]of segs){gl.bindBuffer(gl.ARRAY_BUFFER,s.vb);this.attribs(M,lay,10);gl.drawArrays(gl.TRIANGLES,0,s.n);}
+    if(showShip){
+      const key=look.acc.join(',');let sb=this.ships.get(key);
+      if(!sb){const d=shipMesh(look.acc);sb={b:this.buf(d),n:d.length/10};this.ships.set(key,sb);}
+      const f=norm(sub(P(z-1.5),ship)),zA=f.map(v=>-v),xA0=norm(cross([0,1,0],zA)),yA0=cross(zA,xA0);
+      const cb=Math.cos(bank),sbk=Math.sin(bank),xA=xA0.map((v,i)=>v*cb+yA0[i]*sbk),yA=yA0.map((v,i)=>-xA0[i]*sbk+v*cb);
+      gl.uniformMatrix4fv(u.uModel,false,[...xA,0,...yA,0,...zA,0,...ship,1]);
+      gl.bindBuffer(gl.ARRAY_BUFFER,sb.b);this.attribs(M,lay,10);gl.drawArrays(gl.TRIANGLES,0,sb.n);
+    }
+    // 近くの星
+    gl.depthMask(false);
+    for(const[,s]of segs)if(s.sb)drawPts(s.sb,s.sn,0);
+    gl.depthMask(true);
+  }
+}
+
+// ---------- 画面の組み立て（計器・レーダー・通信） ----------
+const LINES={white:[236,236,232],green:[96,255,128],amber:[255,184,64],cyan:[120,222,255],pink:[255,120,210]};
+const PIXELS={full:0,low:240,lower:120};
+function layout(W,H,deco){
+  if(!deco)return{view:{x:0,y:0,w:W,h:H}};
+  const m=Math.round(H*.04),rw=Math.round(W*.28),vw=W-rw-m*3,vh=Math.round(H*.6),by=m*2+vh,bh=H-by-m;
+  return{view:{x:m,y:m,w:vw,h:vh},map:{x:m*2+vw,y:m,w:rw,h:vh},party:{x:m,y:by,w:vw,h:bh},msg:{x:m*2+vw,y:by,w:rw,h:bh}};
+}
+const rgb=(c,a=1)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+// ポリゴンのときの窓：暗い板と、角の金具
+function sciBox(g,r,acc,s,outside){
+  const e=Math.round(s*5),o=outside?{x:r.x-e,y:r.y-e,w:r.w+e*2,h:r.h+e*2}:r,lw=Math.max(1,Math.round(s));
+  if(!outside){const gr=g.createLinearGradient(0,o.y,0,o.y+o.h);gr.addColorStop(0,rgb(acc.map(v=>v*.12+8),.92));gr.addColorStop(1,'rgba(4,6,10,.95)');g.fillStyle=gr;g.fillRect(o.x,o.y,o.w,o.h);}
+  g.strokeStyle=rgb(acc,.4);g.lineWidth=lw;g.strokeRect(o.x+lw/2,o.y+lw/2,o.w-lw,o.h-lw);
+  const L=Math.round(s*16),k=Math.max(2,Math.round(s*2.6));g.fillStyle=rgb(acc,.95);
+  for(const[x,y,dx,dy]of[[o.x,o.y,1,1],[o.x+o.w,o.y,-1,1],[o.x,o.y+o.h,1,-1],[o.x+o.w,o.y+o.h,-1,-1]]){
+    g.fillRect(dx>0?x:x-L,dy>0?y:y-k,L,k);g.fillRect(dx>0?x:x-k,dy>0?y:y-L,k,L);
+  }
+}
+function lookFor(sim){
+  const K=sim.region.K,wire=cfg.style==='wire',autoLine=cfg.line==='auto',line=autoLine?K.line:(LINES[cfg.line]||LINES.white);
+  return{wire,autoLine,line,view:cfg.view,aspect:cfg.aspect,crisp:cfg.pixel!=='full',acc:wire?line:K.acc,ui:wire?line:[228,234,244]};
+}
+let view3d;
+function drawFrame(g,W,H,sim,look){
+  const L=layout(W,H,cfg.deco),s=H/480,v=L.view,FONT='"DotGothic16",monospace';
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  if(cfg.deco&&!look.wire){
+    const bgr=g.createLinearGradient(0,0,0,H);bgr.addColorStop(0,'#05070d');bgr.addColorStop(1,'#0b0e18');g.fillStyle=bgr;g.fillRect(0,0,W,H);
+    g.strokeStyle=rgb(look.acc,.05);g.lineWidth=1;const gs=Math.round(s*24);
+    for(let x=0;x<W;x+=gs){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke();}
+    for(let y=0;y<H;y+=gs){g.beginPath();g.moveTo(0,y+.5);g.lineTo(W,y+.5);g.stroke();}
+    sciBox(g,v,look.acc,s,true);for(const r of[L.map,L.party,L.msg])sciBox(g,r,look.acc,s,false);
+  }
+  const ph=PIXELS[cfg.pixel];let ih=ph?Math.min(v.h,ph):v.h;const iw=Math.max(2,Math.round(ih*v.w/v.h));ih=Math.round(ih);
+  view3d.render(iw,ih,sim,look);
+  g.imageSmoothingEnabled=!ph;g.drawImage(view3d.cv,v.x,v.y,v.w,v.h);g.imageSmoothingEnabled=true;
+  if(sim.fade>0){g.fillStyle=`rgba(0,0,0,${sim.fade})`;g.fillRect(v.x,v.y,v.w,v.h);}
+  const col=rgb(look.ui);
+  // 区域の表示
+  const age=sim.time-sim.banner.t0,ba=clamp(Math.min(age/.4,(3-age)/.6),0,1);
+  if(ba>0){
+    const fs=Math.round(v.h*.085);g.textAlign='center';g.textBaseline='middle';
+    g.font=`${fs}px ${FONT}`;g.fillStyle=rgb(look.ui,ba);g.fillText(sim.banner.text,v.x+v.w/2,v.y+v.h/2-fs*.45);
+    g.font=`${Math.round(fs*.55)}px ${FONT}`;g.fillStyle=rgb(look.acc,ba);g.fillText(sim.banner.sub,v.x+v.w/2,v.y+v.h/2+fs*.55);
+    g.textAlign='left';
+  }
+  const ls=lyricState(sim);
+  if(!cfg.deco){
+    if(ls&&ls.active){
+      const e=ls.active,a=clamp(Math.min((ls.t-e.t0)/.2,(e.t1-ls.t)/.2),0,1),f2=Math.round(v.h*.052);
+      g.font=`${f2}px ${FONT}`;g.textAlign='center';g.textBaseline='alphabetic';g.lineJoin='round';
+      const lines=wrapText(g,e.text,v.w*.86);
+      lines.forEach((l,i)=>{const y=v.y+v.h-f2*.9-(lines.length-1-i)*f2*1.3;
+        g.lineWidth=f2*.24;g.strokeStyle=`rgba(0,0,0,${.85*a})`;g.strokeText(l,v.x+v.w/2,y);
+        g.fillStyle=rgb(look.ui,a);g.fillText(l,v.x+v.w/2,y);});
+      g.textAlign='left';
+    }
+    return;
+  }
+  if(look.wire){
+    box(g,{x:v.x-Math.round(s*6),y:v.y-Math.round(s*6),w:v.w+Math.round(s*12),h:v.h+Math.round(s*12)},col,s);
+    for(const r of[L.map,L.party,L.msg])box(g,r,col,s);
+  }
+  const pad=Math.round(s*(look.wire?12:13)),fs=Math.max(8,Math.floor(Math.min((L.party.h-pad*2)/6*.62,s*15)));
+  g.font=`${fs}px ${FONT}`;g.textBaseline='top';
+  // 計器
+  {const r=L.party,x=r.x+pad,w=r.w-pad*2,rowH=(r.h-pad*2)/5,t=sim.time;
+    const rows=[['速度',sim.speed/58,`${Math.round(sim.speed*29)}`],['シールド',.92+.06*Math.sin(t*.23),null],['エネルギー',.62+.3*Math.sin(t*.07+1),null],
+      ['距離',null,`${(sim.dist/1000).toFixed(2)} 千`],['区域',null,`${sim.ri+1}　${sim.region.K.name}`]];
+    rows.forEach(([name,val,txt],i)=>{
+      const y=r.y+pad+rowH*i+(rowH-fs)/2;
+      g.fillStyle=rgb(look.acc,.9);g.fillText(name,x,y);
+      const bx=x+w*.24,bw=w*.56;
+      if(val!==null){
+        const segs=20,sw=bw/segs,on=Math.round(clamp(val,0,1)*segs);
+        for(let k=0;k<segs;k++){g.fillStyle=k<on?rgb(look.ui,.9):rgb(look.ui,.12);g.fillRect(bx+k*sw,y+fs*.15,sw*.72,fs*.7);}
+        g.fillStyle=col;g.textAlign='right';g.fillText(txt||`${Math.round(val*100)}%`,x+w,y);g.textAlign='left';
+      }else{g.fillStyle=col;g.fillText(txt,bx,y);}
+    });}
+  // レーダー
+  {const r=L.map,{R,z,ship}=sim.pose();
+    g.fillStyle=rgb(look.acc);g.fillText('レーダー',r.x+pad,r.y+pad);
+    g.textAlign='right';g.fillStyle=col;g.fillText(fmt(sim.time),r.x+r.w-pad,r.y+pad);g.textAlign='left';
+    const top=r.y+pad+fs*1.8,aw=r.w-pad*2,ah=r.y+r.h-pad-top,rad=Math.min(aw,ah)/2*.94,cx=r.x+pad+aw/2,cy=top+ah/2,RNG=160;
+    g.save();g.beginPath();g.arc(cx,cy,rad,0,Math.PI*2);g.clip();
+    g.fillStyle=rgb(look.acc,.06);g.fillRect(cx-rad,cy-rad,rad*2,rad*2);
+    const lw=Math.max(1,Math.round(s));g.lineWidth=lw;g.strokeStyle=rgb(look.ui,.28);
+    for(const k of[1/3,2/3,1]){g.beginPath();g.arc(cx,cy,rad*k-lw,0,Math.PI*2);g.stroke();}
+    g.beginPath();g.moveTo(cx-rad,cy);g.lineTo(cx+rad,cy);g.moveTo(cx,cy-rad);g.lineTo(cx,cy+rad);g.stroke();
+    // 回る掃引線（ゆっくり、点滅なし）
+    const sa=t=>-Math.PI/2+t*1.2;
+    for(let k=0;k<24;k++){const a=sa(sim.time)-k*.035;g.strokeStyle=rgb(look.acc,.5*(1-k/24));g.beginPath();g.moveTo(cx,cy);g.lineTo(cx+Math.cos(a)*rad,cy+Math.sin(a)*rad);g.stroke();}
+    const S=rad/RNG,X=wx=>cx+(wx-ship[0])*S,Y=wz=>cy+(wz-z)*S;
+    g.strokeStyle=rgb(look.ui,.55);g.setLineDash([lw*3,lw*3]);g.beginPath();
+    for(let k=0;k<=16;k++){const zz=z-k*10;k?g.lineTo(X(R.px(zz)),Y(zz)):g.moveTo(X(R.px(zz)),Y(zz));}
+    g.stroke();g.setLineDash([]);
+    const cur=Math.floor(-z/SEG);
+    for(let i=Math.max(0,cur-2);i<=cur+3;i++)for(const o of R.seg(i).objs){
+      const dx=o.x-ship[0],dz=o.z-z;if(Math.hypot(dx,dz)>RNG*1.1&&!o.planet)continue;
+      g.fillStyle=rgb(look.acc,.9);const q=Math.max(2,Math.min(o.planet?rad*.25:6*s,o.s*S*2));
+      g.beginPath();g.arc(X(o.x),Y(o.z),q/2,0,Math.PI*2);g.fill();
+    }
+    g.fillStyle=col;g.beginPath();g.moveTo(cx,cy-6*s);g.lineTo(cx+4.5*s,cy+4*s);g.lineTo(cx-4.5*s,cy+4*s);g.closePath();g.fill();
+    g.restore();}
+  // 通信
+  {const r=L.msg,lh=fs*1.45,n=Math.max(1,Math.floor((r.h-pad*2)/lh)),w=r.w-pad*2;
+    if(ls&&ls.k>=0){
+      let rows=[];
+      for(let i=ls.k;i>=0&&rows.length<n;i--){
+        const e=ls.L[i],a=(e===ls.active?1:.42)*(i===ls.k?clamp((ls.t-e.t0)/.25,0,1):1);
+        rows=wrapText(g,e.text,w).map(text=>({text,a})).concat(rows);
+      }
+      rows.slice(-n).forEach((m,i)=>{g.fillStyle=rgb(look.ui,m.a);g.fillText(m.text,r.x+pad,r.y+pad+lh*i);});
+    }else{
+      const lines=sim.log.slice(-n);
+      lines.forEach((m,i)=>{const fresh=clamp((sim.time-m.t)/.25,0,1);
+        g.fillStyle=rgb(look.ui,(i===lines.length-1?1:.55)*fresh);g.fillText(fitText(g,m.text,w),r.x+pad,r.y+pad+lh*i);});
+    }}
+}
+
+// ---------- 窓・文字の小道具 ----------
+function box(g,r,col,s){
+  g.strokeStyle=col;const lw=Math.max(1,Math.round(s*1.3));g.lineWidth=lw;
+  const o=lw/2;g.strokeRect(r.x+o,r.y+o,r.w-lw,r.h-lw);
+  const i=Math.round(s*3.5)+lw*1.5;g.strokeRect(r.x+i,r.y+i,r.w-i*2,r.h-i*2);
+}
+function wrapText(g,t,w){
+  const out=[];let line='';
+  for(const ch of t){
+    if(line&&g.measureText(line+ch).width>w){
+      const sp=Math.max(line.lastIndexOf(' '),line.lastIndexOf('　'));
+      if(sp>line.length*.5){out.push(line.slice(0,sp));line=line.slice(sp+1)+ch;}
+      else{out.push(line);line=ch.trim()?ch:'';}
+    }else line+=ch;
+  }
+  if(line)out.push(line);return out;
+}
+// いまの歌詞（曲が繰り返すなら歌詞も頭から）
+function lyricState(sim){
+  if(!cfg.lyrics||!snd||!snd.lyrics||!snd.lyrics.length)return null;
+  const t=sim.time%snd.buf.duration,L=snd.lyrics;let k=-1;
+  for(let i=0;i<L.length&&L[i].t0<=t;i++)k=i;
+  return{t,k,L,active:k>=0&&t<L[k].t1?L[k]:null};
+}
+function fitText(g,t,w){if(g.measureText(t).width<=w)return t;while(t.length&&g.measureText(t+'…').width>w)t=t.slice(0,-1);return t+'…';}
+
+// ---------- 設定 ----------
+const RES={'4:3':[['640x480','640×480'],['960x720','960×720'],['1440x1080','1440×1080']],'16:9':[['1280x720','1280×720'],['1920x1080','1920×1080']]};
+const OPTS={
+  aspect:[['4:3','4:3'],['16:9','16:9']],
+  style:[['solid','ポリゴン'],['wire','線画']],
+  line:[['auto','景色ごと'],['white','白'],['green','緑'],['amber','琥珀'],['cyan','水色'],['pink','桃']],
+  view:[['chase','後ろから'],['cockpit','操縦席']],
+  deco:[[true,'あり'],[false,'なし']],
+  pixel:[['full','なめらか'],['low','粗い'],['lower','とても粗い']],
+  speed:[['slow','ゆっくり'],['mid','ふつう'],['fast','はやい']],
+  regionLen:[[30,'30秒'],[60,'1分'],[120,'2分']],
+  minutes:[[1,'1分'],[3,'3分'],[5,'5分'],[10,'10分']],
+  fps:[[30,'30コマ/秒'],[60,'60コマ/秒']],
+  lyrics:[[true,'出す'],[false,'出さない']],
+};
+const RESTART=new Set(['speed','regionLen']);
+const DEF={aspect:'16:9',res:'1920x1080',scenes:[...KIND_ORDER],style:'solid',line:'auto',view:'chase',deco:true,pixel:'full',speed:'mid',regionLen:60,seed:1+((Math.random()*999999)|0),minutes:5,fps:30,lyrics:true};
+let cfg={...DEF};
+try{Object.assign(cfg,JSON.parse(localStorage.getItem('endless-flight')||'{}'));}catch(e){}
+if(!RES[cfg.aspect].some(r=>r[0]===cfg.res))cfg.res=RES[cfg.aspect].at(-1)[0];
+if(!Array.isArray(cfg.scenes)||!cfg.scenes.length)cfg.scenes=[...KIND_ORDER];
+const save=()=>{try{localStorage.setItem('endless-flight',JSON.stringify(cfg));}catch(e){}};
+
+const $=s=>document.querySelector(s), out=$('#out'), octx=out.getContext('2d');
+let sim, playing=true, exporting=false, cancelled=false;
+const newSim=()=>new Sim({seed:cfg.seed,speed:cfg.speed,regionLen:cfg.regionLen,scenes:cfg.scenes,cfg});
+function restart(){sim=newSim();if(snd&&playing)player.play(snd.buf,0);}
+
+// ---------- 音 ----------
+let snd=null;
+const AINFO='入れると、その音付きで書き出します。長さは曲に合わせます。曲より長くすると頭から繰り返し、どちらの場合も最後の1.5秒で音を小さくして終えます。この画面に音のファイルを放り込んでも入ります。';
+// プレビュー用の再生（ブラウザが鳴らせない形式でも、解いた後の波形を直接鳴らす）
+const player={ctx:null,src:null,t0:0,
+  unlock(){try{if(!this.ctx)this.ctx=new (window.AudioContext||window.webkitAudioContext)();this.ctx.resume();}catch(e){}},
+  play(buf,at){
+    this.stop();this.unlock();if(!this.ctx)return;
+    const s=this.ctx.createBufferSource(),off=at%buf.duration;
+    s.buffer=buf;s.loop=true;s.connect(this.ctx.destination);s.start(0,off);
+    this.src=s;this.t0=this.ctx.currentTime-off;
+  },
+  stop(){if(this.src){try{this.src.stop();}catch(e){}this.src.disconnect();this.src=null;}},
+  pos(buf){return(this.ctx.currentTime-this.t0)%buf.duration;},
+};
+// MP4（.m4a）の中から Opus の音の粒を取り出す
+function mp4Reader(ab){
+  const dv=new DataView(ab),u8=new Uint8Array(ab),str=o=>String.fromCharCode(u8[o],u8[o+1],u8[o+2],u8[o+3]);
+  const boxes=(s,e)=>{const r=[];for(let o=s;o+8<=e;){let n=dv.getUint32(o),h=8;
+    if(n===1){n=Number(dv.getBigUint64(o+8));h=16;}else if(n===0)n=e-o;
+    if(n<h)break;r.push({t:str(o+4),o,s:o+h,e:o+n});o+=n;}return r;};
+  const kid=(b,t)=>b&&boxes(b.s,b.e).find(x=>x.t===t);
+  const moov=boxes(0,ab.byteLength).find(x=>x.t==='moov');
+  if(!moov)throw new Error('MP4 ではない');
+  // 標本ごとの位置と大きさ
+  const samples=stbl=>{
+    const stsz=kid(stbl,'stsz'),stsc=kid(stbl,'stsc'),stco=kid(stbl,'stco'),co64=kid(stbl,'co64');
+    const fixed=dv.getUint32(stsz.s+4),count=dv.getUint32(stsz.s+8),size=i=>fixed||dv.getUint32(stsz.s+12+i*4);
+    const offs=[];
+    if(stco)for(let i=0,n=dv.getUint32(stco.s+4);i<n;i++)offs.push(dv.getUint32(stco.s+8+i*4));
+    else for(let i=0,n=dv.getUint32(co64.s+4);i<n;i++)offs.push(Number(dv.getBigUint64(co64.s+8+i*8)));
+    const runs=[];for(let i=0,n=dv.getUint32(stsc.s+4);i<n;i++)runs.push([dv.getUint32(stsc.s+8+i*12),dv.getUint32(stsc.s+12+i*12)]);
+    const out=[];let si=0,ri=0;
+    for(let c=0;c<offs.length&&si<count;c++){
+      while(ri+1<runs.length&&runs[ri+1][0]<=c+1)ri++;
+      let o=offs[c];
+      for(let k=0;k<runs[ri][1]&&si<count;k++,si++){const n=size(si);out.push({off:o,size:n});o+=n;}
+    }
+    return out;
+  };
+  return{dv,u8,str,boxes,kid,moov,samples};
+}
+function mp4Opus(ab){
+  const{dv,u8,str,boxes,kid,moov,samples}=mp4Reader(ab);
+  for(const trak of boxes(moov.s,moov.e).filter(x=>x.t==='trak')){
+    const mdia=kid(trak,'mdia'),hdlr=kid(mdia,'hdlr');
+    if(!hdlr||str(hdlr.s+8)!=='soun')continue;
+    const stbl=kid(kid(mdia,'minf'),'stbl'),stsd=kid(stbl,'stsd');
+    const en=stsd.s+8;if(str(en+4)!=='Opus')throw new Error('Opus ではない: '+str(en+4));
+    const dops=boxes(en+36,en+dv.getUint32(en)).find(x=>x.t==='dOps');
+    const d=dops.s,ch=u8[d+1],fam=u8[d+10],opt={channels:ch,preSkip:0};
+    // 頭の捨てる分は編集リストの開始位置（無ければヘッダの preSkip）
+    const elst=kid(kid(trak,'edts'),'elst');
+    const skip=elst&&dv.getUint32(elst.s+4)>0?(u8[elst.s]===1?Number(dv.getBigInt64(elst.s+16)):dv.getInt32(elst.s+12)):dv.getUint16(d+2);
+    if(fam>0){opt.streamCount=u8[d+11];opt.coupledStreamCount=u8[d+12];opt.channelMappingTable=[...u8.subarray(d+13,d+13+ch)];}
+    if(ch>2)opt.forceStereo=true;
+    const packets=samples(stbl).map(x=>u8.subarray(x.off,x.off+x.size));
+    return{opt,packets,skip:Math.max(0,skip)};
+  }
+  throw new Error('音のトラックがない');
+}
+// MP4 に入っている字幕（歌詞）のトラックを読む
+function mp4Lyrics(ab){
+  const{dv,u8,str,boxes,kid,moov,samples}=mp4Reader(ab);
+  const tsOf=b=>dv.getUint32(b.s+(u8[b.s]===1?20:12));
+  const mts=tsOf(kid(moov,'mvhd')),dec=new TextDecoder();
+  for(const trak of boxes(moov.s,moov.e).filter(x=>x.t==='trak')){
+    const mdia=kid(trak,'mdia'),hdlr=kid(mdia,'hdlr');
+    if(!hdlr||!['sbtl','text','subt'].includes(str(hdlr.s+8)))continue;
+    const ts=tsOf(kid(mdia,'mdhd')),stbl=kid(kid(mdia,'minf'),'stbl'),stts=kid(stbl,'stts');
+    // 編集リスト：頭の空白（-1）と、使い始める位置
+    let delay=0,mstart=0;const elst=kid(kid(trak,'edts'),'elst');
+    if(elst){const v1=u8[elst.s]===1,sz=v1?20:12;
+      for(let i=0,n=dv.getUint32(elst.s+4);i<n;i++){const o=elst.s+8+i*sz,dur=v1?Number(dv.getBigUint64(o)):dv.getUint32(o),mt=v1?Number(dv.getBigInt64(o+8)):dv.getInt32(o+4);
+        if(mt===-1)delay+=dur/mts;else{mstart=mt;break;}}}
+    const sm=samples(stbl),out=[];let t=0,k=0;
+    for(let i=0,n=dv.getUint32(stts.s+4);i<n;i++){
+      const c=dv.getUint32(stts.s+8+i*8),d=dv.getUint32(stts.s+12+i*8);
+      for(let j=0;j<c&&k<sm.length;j++,k++){
+        const{off,size}=sm[k];
+        if(size>=2){const L=dv.getUint16(off),text=dec.decode(u8.subarray(off+2,off+2+Math.min(L,size-2)));
+          out.push({t0:delay+(t-mstart)/ts,t1:delay+(t+d-mstart)/ts,text});}
+        t+=d;
+      }
+    }
+    return cleanLyrics(out);
+  }
+  return[];
+}
+// .srt / .vtt / .lrc の歌詞ファイル
+function parseLyricsText(txt){
+  const out=[];txt=txt.replace(/\r/g,'');
+  if(/-->/.test(txt)){
+    const T=(h,m,s,ms)=>(+h||0)*3600+ +m*60+ +s+ +ms/1000;
+    for(const blk of txt.split(/\n\s*\n/)){
+      const lines=blk.split('\n'),i=lines.findIndex(l=>l.includes('-->'));if(i<0)continue;
+      const m=lines[i].match(/(?:(\d+):)?(\d+):(\d+)[,.](\d+)\s*-->\s*(?:(\d+):)?(\d+):(\d+)[,.](\d+)/);if(!m)continue;
+      out.push({t0:T(m[1],m[2],m[3],m[4]),t1:T(m[5],m[6],m[7],m[8]),text:lines.slice(i+1).join(' ').replace(/<[^>]+>/g,'')});
+    }
+  }else{
+    for(const line of txt.split('\n')){
+      const tags=[...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];if(!tags.length)continue;
+      const text=line.replace(/\[[^\]]*\]/g,'').replace(/<[^>]+>/g,'');
+      for(const m of tags)out.push({t0:+m[1]*60+ +m[2],text});
+    }
+    out.sort((a,b)=>a.t0-b.t0);out.forEach((e,i)=>e.t1=out[i+1]?out[i+1].t0:e.t0+6);
+  }
+  return cleanLyrics(out);
+}
+// 空行と [Verse 1] のような区切りの印を除く
+const cleanLyrics=a=>a.map(e=>({...e,text:e.text.trim()})).filter(e=>e.text&&!/^\[.*\]$/.test(e.text)).sort((a,b)=>a.t0-b.t0);
+async function loadLyrics(file){
+  if(!snd){$('#ainfo').textContent='先に音のファイルを入れてください。';return;}
+  try{snd.lyrics=parseLyricsText(await file.text());snd.lyricsFrom=file.name;}catch(e){console.error(e);snd.lyrics=[];}
+  showAudio();
+}
+const loadScript=src=>new Promise((ok,ng)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=ng;document.head.appendChild(s);});
+async function decodeOpusMp4(ab){
+  const{opt,packets,skip}=mp4Opus(ab);
+  if(!window['opus-decoder'])await loadScript('opus-decoder.min.js');
+  const dec=new window['opus-decoder'].OpusDecoder(opt);await dec.ready;
+  const r=dec.decodeFrames(packets);dec.free();
+  const n=r.samplesDecoded-skip,buf=new AudioBuffer({length:n,numberOfChannels:r.channelData.length,sampleRate:r.sampleRate});
+  r.channelData.forEach((c,i)=>buf.copyToChannel(c.subarray(skip,skip+n),i));
+  return buf;
+}
+async function loadAudio(file){
+  player.unlock();
+  $('#ainfo').textContent='読み込んでいます…';
+  let buf;
+  try{
+    const ab=await file.arrayBuffer();
+    try{
+      const ac=new (window.AudioContext||window.webkitAudioContext)({sampleRate:48000});
+      buf=await ac.decodeAudioData(ab.slice(0));ac.close();
+    }catch(e){
+      // ブラウザ自身が読めないとき（Safari で Opus 入りの .m4a など）は自前で解く
+      console.warn('decodeAudioData に失敗、自前で解く',e);
+      buf=await decodeOpusMp4(ab);
+    }
+  }catch(e){console.error(e);$('#ainfo').textContent='この音のファイルは読めませんでした。';return;}
+  let lyrics=[];
+  try{lyrics=mp4Lyrics(await file.arrayBuffer());}catch(e){}
+  clearAudio(true);
+  snd={buf,name:file.name,lyrics};
+  cfg.minutes=Math.max(1,Math.floor(buf.duration))/60;save();renderUI();restart();showAudio();
+}
+function clearAudio(quiet){player.stop();snd=null;if(!quiet)showAudio();}
+function showAudio(){
+  $('#aclear').style.display=snd?'':'none';
+  $('#lyrbox').style.display=snd?'':'none';
+  if(snd)$('#linfo').textContent=snd.lyrics.length?`${snd.lyricsFrom?'「'+snd.lyricsFrom+'」の':'曲に入っていた'}歌詞（${snd.lyrics.length}行）を、画面の飾りがあるときはメッセージ欄に、ないときは画面の下に流します。`:'この曲には歌詞が入っていません。.lrc や .srt の歌詞ファイルを入れることもできます。';
+  $('#ainfo').textContent=snd?`「${snd.name}」（${fmt(snd.buf.duration)}）を付けて書き出します。曲より長くすると頭から繰り返し、最後の1.5秒で音を小さくして終えます。`:AINFO;
+}
+function sizeCanvas(){const[w,h]=cfg.res.split('x').map(Number);if(out.width!==w||out.height!==h){out.width=w;out.height=h;}}
+
+function renderUI(){
+  document.querySelectorAll('.seg[data-key]').forEach(el=>{
+    const k=el.dataset.key;el.innerHTML='';
+    for(const[v,label]of OPTS[k]){const b=document.createElement('button');b.className='chip'+(cfg[k]===v?' on':'');b.textContent=label;
+      b.onclick=()=>{cfg[k]=v;if(k==='aspect')cfg.res=RES[v].at(-1)[0];save();renderUI();sizeCanvas();if(RESTART.has(k))restart();};el.appendChild(b);}
+  });
+  const sc=$('#scenes');sc.innerHTML='';
+  for(const k of KIND_ORDER){const b=document.createElement('button');b.className='chip'+(cfg.scenes.includes(k)?' on':'');b.textContent=KINDS[k].name;
+    b.onclick=()=>{const on=cfg.scenes.includes(k);if(on&&cfg.scenes.length===1)return;
+      cfg.scenes=on?cfg.scenes.filter(x=>x!==k):KIND_ORDER.filter(x=>x===k||cfg.scenes.includes(x));save();renderUI();restart();};sc.appendChild(b);}
+  const re=$('#res');re.innerHTML='';
+  for(const[v,label]of RES[cfg.aspect]){const b=document.createElement('button');b.className='chip'+(cfg.res===v?' on':'');b.textContent=label;
+    b.onclick=()=>{cfg.res=v;save();renderUI();sizeCanvas();};re.appendChild(b);}
+  $('#seed').value=cfg.seed;$('#mins').value=fmt(Math.round(cfg.minutes*60));
+}
+function setupTabs(){
+  const panel=$('#panel'),narrow=()=>matchMedia('(max-width:820px)').matches;
+  if(narrow())panel.classList.remove('open');
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+    const was=b.classList.contains('on');
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.tab));
+    if(narrow())panel.classList.toggle('open',!(was&&panel.classList.contains('open')));
+  });
+}
+const fmt=t=>{t=Math.floor(t);const h=(t/3600)|0,m=((t%3600)/60)|0,s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0');};
+
+// ---------- プレビュー ----------
+let last=performance.now();
+function loop(ts){
+  const dt=Math.min(.25,(ts-last)/1000);last=ts;
+  if(!exporting){
+    if(playing)sim.update(dt);
+    if(snd&&playing&&player.src){const D=snd.buf.duration,g=Math.abs(player.pos(snd.buf)-sim.time%D);if(Math.min(g,D-g)>.3)player.play(snd.buf,sim.time);}
+    drawFrame(octx,out.width,out.height,sim,lookFor(sim));
+    $('#clock').textContent=`${fmt(sim.time)}　区域${sim.ri+1}`;
+  }
+  requestAnimationFrame(loop);
+}
+
+
+// ---------- MP4 書き出し ----------
+// AAC の設定（AudioSpecificConfig）を正す。Safari は ES 記述子ごと渡してくるので、
+// そのまま書くと設定欄が壊れて無音の動画になる。中身を取り出すか、作り直す。
+function fixAacMeta(meta,conf){
+  const dc=meta&&meta.decoderConfig;
+  if(!dc||conf.codec==='opus')return meta;
+  const raw=dc.description,b=raw?(raw instanceof ArrayBuffer?new Uint8Array(raw):new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength)):null;
+  if(b&&b.length>=2&&b[0]!==0x03)return meta;
+  let asc=null;
+  if(b){
+    // 記述子をたどって DecoderSpecificInfo(0x05) を探す
+    const len=i=>{let n=0,k=0;do{n=(n<<7)|(b[i+k]&0x7f);}while(b[i+k++]&0x80&&k<4);return[n,k];};
+    let i=0;
+    while(i<b.length){
+      const tag=b[i],[n,k]=len(i+1),body=i+1+k;
+      if(tag===0x05){asc=b.slice(body,body+n);break;}
+      if(tag===0x03){i=body+3;const f=b[body+2];if(f&0x80)i+=2;if(f&0x40)i+=1+b[i];if(f&0x20)i+=2;}
+      else if(tag===0x04)i=body+13;
+      else i=body+n;
+    }
+  }
+  if(!asc||asc.length<2||asc[0]===0x03){
+    const rates=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350];
+    const fi=Math.max(0,rates.indexOf(conf.sampleRate)),ch=conf.numberOfChannels;
+    asc=new Uint8Array([(2<<3)|(fi>>1),((fi&1)<<7)|(ch<<3)]);
+  }
+  return{...meta,decoderConfig:{...dc,description:asc}};
+}
+async function exportMp4(){
+  if(!('VideoEncoder' in window)){alert('このブラウザは動画の書き出しに対応していません。Chrome / Edge / Safari の新しい版で開いてください。');return;}
+  sizeCanvas();
+  const[W,H]=cfg.res.split('x').map(Number),fps=cfg.fps,total=Math.max(1,Math.round(cfg.minutes*60*fps));
+  try{await document.fonts.load('20px "DotGothic16"');}catch(e){}
+  const bitrate=Math.max(1.5e6,Math.round(W*H*fps*.08));
+  let config=null;
+  for(const codec of['avc1.640033','avc1.4d0033','avc1.42e033','avc1.640028','avc1.42001f']){
+    const c={codec,width:W,height:H,bitrate,framerate:fps,latencyMode:'quality',avc:{format:'avc'}};
+    try{if((await VideoEncoder.isConfigSupported(c)).supported){config=c;break;}}catch(e){}
+  }
+  if(!config){alert('この大きさの動画を作れませんでした。小さめの大きさで試してください。');return;}
+  let aconf=null;const asr=snd?snd.buf.sampleRate:0,ach=snd?Math.min(2,snd.buf.numberOfChannels):0;
+  if(snd){
+    if('AudioEncoder' in window)for(const codec of['mp4a.40.2','opus']){
+      const c={codec,sampleRate:asr,numberOfChannels:ach,bitrate:192000};
+      try{if((await AudioEncoder.isConfigSupported(c)).supported){aconf=c;break;}}catch(e){}
+    }
+    if(!aconf){alert('このブラウザでは音付きの動画を作れません。Chrome か Edge で開いてください。');return;}
+  }
+  const name=`endless-dungeon_${cfg.seed}_${W}x${H}.mp4`;
+  let stream=null,target=null;
+  if(window.showSaveFilePicker){
+    try{const fh=await showSaveFilePicker({suggestedName:name,types:[{description:'MP4 動画',accept:{'video/mp4':['.mp4']}}]});
+      stream=await fh.createWritable();target=new Mp4Muxer.FileSystemWritableFileStreamTarget(stream);}
+    catch(e){if(e.name==='AbortError')return;}
+  }
+  if(!target)target=new Mp4Muxer.ArrayBufferTarget();
+  const muxer=new Mp4Muxer.Muxer({target,video:{codec:'avc',width:W,height:H,frameRate:fps},
+    audio:aconf?{codec:aconf.codec==='opus'?'opus':'aac',sampleRate:asr,numberOfChannels:ach}:undefined,fastStart:stream?false:'in-memory',firstTimestampBehavior:'offset'});
+  let err=null;
+  const enc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e;}});
+  enc.configure(config);
+  let aenc=null,apos=0;const atotal=Math.round(total/fps*asr),FADE=1.5;
+  if(aconf){aenc=new AudioEncoder({output:(ch,meta)=>muxer.addAudioChunk(ch,fixAacMeta(meta,aconf)),error:e=>{err=e;}});aenc.configure(aconf);}
+  // 動画のコマに追いつくまで音を流し込む（曲が短ければ頭から繰り返し、最後はしぼる）
+  const feed=until=>{
+    if(!aenc)return;
+    const L=snd.buf.length,src=[...Array(ach)].map((_,c)=>snd.buf.getChannelData(Math.min(c,snd.buf.numberOfChannels-1)));
+    while(apos<until){
+      const n=Math.min(4096,until-apos),data=new Float32Array(n*ach);
+      for(let c=0;c<ach;c++)for(let k=0;k<n;k++){const s=apos+k,rem=(atotal-s)/asr;data[c*n+k]=src[c][s%L]*(rem<FADE?rem/FADE:1);}
+      const ad=new AudioData({format:'f32-planar',sampleRate:asr,numberOfFrames:n,numberOfChannels:ach,timestamp:Math.round(apos/asr*1e6),data});
+      aenc.encode(ad);ad.close();apos+=n;
+    }
+  };
+  player.stop();
+  exporting=true;cancelled=false;document.body.classList.add('lock');$('#go').disabled=true;$('#prog').classList.add('on');
+  const xs=newSim(),dt=1/fps,t0=performance.now();
+  const tick=()=>new Promise(r=>setTimeout(r,0));
+  try{
+    for(let i=0;i<total;i++){
+      if(cancelled||err)break;
+      if(i>0)xs.update(dt);
+      drawFrame(octx,W,H,xs,lookFor(xs));
+      const vf=new VideoFrame(out,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
+      enc.encode(vf,{keyFrame:i%(fps*2)===0});vf.close();
+      feed(Math.min(atotal,Math.round((i+1)/fps*asr)));
+      while((enc.encodeQueueSize>6||(aenc&&aenc.encodeQueueSize>16))&&!err)await tick();
+      if(i%10===0){
+        const el=(performance.now()-t0)/1000,rest=el/(i+1)*(total-i-1);
+        $('#meter').style.width=(i/total*100).toFixed(1)+'%';
+        $('#progt').textContent=`${fmt(i/fps)} / ${fmt(total/fps)}　あと 約${fmt(rest)}`;
+        await tick();
+      }
+    }
+    if(err)throw err;
+    if(cancelled){enc.close();if(aenc)aenc.close();if(stream)await stream.abort().catch(()=>{});$('#progt').textContent='中止しました';return;}
+    $('#progt').textContent='仕上げています…';
+    feed(atotal);
+    await enc.flush();if(aenc)await aenc.flush();muxer.finalize();
+    if(stream)await stream.close();
+    else{const url=URL.createObjectURL(new Blob([target.buffer],{type:'video/mp4'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+    $('#meter').style.width='100%';
+    $('#progt').textContent=`できました（${fmt(total/fps)}・${((performance.now()-t0)/1000).toFixed(0)}秒で書き出し）`;
+  }catch(e){
+    console.error(e);$('#progt').textContent='書き出しに失敗しました: '+(e.message||e);
+    try{enc.close();}catch(_){}try{if(aenc)aenc.close();}catch(_){}if(stream)stream.abort().catch(()=>{});
+  }finally{
+    exporting=false;document.body.classList.remove('lock');if(snd&&playing)player.play(snd.buf,sim.time);$('#go').disabled=false;$('#cancel').style.display='none';
+  }
+}
+
+// ---------- 起動 ----------
+try{view3d=new Space3D();}catch(e){document.body.innerHTML='<p style="padding:24px">このブラウザでは3D表示が使えません。</p>';throw e;}
+renderUI();setupTabs();sizeCanvas();restart();
+$('#ver').textContent='v'+VERSION;
+$('#play').onclick=()=>{playing=!playing;$('#play').textContent=playing?'❚❚':'▶';if(snd){if(playing)player.play(snd.buf,sim.time);else player.stop();}};
+$('#afile').onchange=e=>{const f=e.target.files[0];if(f)loadAudio(f);e.target.value='';};
+$('#aclear').onclick=()=>clearAudio();
+$('#lfile').onchange=e=>{const f=e.target.files[0];if(f)loadLyrics(f);e.target.value='';};
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();
+  const lf=[...e.dataTransfer.files].find(f=>/\.(lrc|srt|vtt)$/i.test(f.name));if(lf&&!exporting){loadLyrics(lf);return;}
+  const f=[...e.dataTransfer.files].find(f=>/^audio\/|\.(mp3|m4a|aac|wav|ogg|flac)$/i.test(f.type+' '+f.name));if(f&&!exporting)loadAudio(f);});
+$('#restart').onclick=restart;
+$('#seed').onchange=e=>{const v=clamp(parseInt(e.target.value)||1,1,999999);cfg.seed=v;save();renderUI();restart();};
+$('#dice').onclick=()=>{cfg.seed=1+((Math.random()*999999)|0);save();renderUI();restart();};
+$('#mins').onchange=e=>{
+  // 「3:19」「1:02:30」なら時:分:秒、ただの数字なら分として読む
+  const t=e.target.value.trim().replace(/：/g,':'),p=t.split(':').map(Number);
+  let sec=p.some(isNaN)?NaN:p.length===1?p[0]*60:p.length===2?p[0]*60+p[1]:p.length===3?p[0]*3600+p[1]*60+p[2]:NaN;
+  if(isFinite(sec)&&sec>0)cfg.minutes=clamp(Math.round(sec),1,7200)/60;
+  save();renderUI();};
+$('#go').onclick=()=>{$('#cancel').style.display='';exportMp4();};
+$('#cancel').onclick=()=>{cancelled=true;};
+addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'){e.preventDefault();$('#play').click();}});
+document.fonts&&document.fonts.load('20px "DotGothic16"');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
