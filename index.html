@@ -98,6 +98,9 @@ input[type=number]{width:110px;background:#1b1b20;border:1px solid var(--line);b
         <div class="row"><label class="chip" style="display:inline-flex;align-items:center">音のファイルを選ぶ<input type="file" id="afile" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" hidden></label><button class="chip" id="aclear" style="display:none">外す</button></div>
         <p class="note" id="ainfo">入れると、その音付きで書き出します。長さは曲に合わせます。曲より長くすると頭から繰り返し、どちらの場合も最後の1.5秒で音を小さくして終えます。この画面に音のファイルを放り込んでも入ります。</p>
         <div id="lyrbox" style="display:none">
+          <h3>曲のどこから</h3>
+          <div class="row"><input type="text" id="aoff" inputmode="decimal" autocomplete="off" style="width:110px;background:#1b1b20;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px"><span class="note" style="margin:0">0:45 のように 分:秒 で</span></div>
+          <p class="note">サビなど、曲の途中から始めた短い版を作れます。長さを「15秒」「30秒」にすると、SNS で最後まで見てもらいやすくなります。</p>
           <h3>歌詞</h3><div class="seg" data-key="lyrics"></div>
           <div class="row" style="margin-top:6px"><label class="chip" style="display:inline-flex;align-items:center">歌詞のファイルを選ぶ<input type="file" id="lfile" accept=".lrc,.srt,.vtt,text/plain" hidden></label></div>
           <p class="note" id="linfo"></p>
@@ -124,7 +127,7 @@ input[type=number]{width:110px;background:#1b1b20;border:1px solid var(--line);b
 <script src="mp4-muxer.js"></script>
 <script>
 'use strict';
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 
 // ---------- 乱数・小道具 ----------
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -414,8 +417,9 @@ class Sim{
       this.banner={text:`区域 ${this.ri+1}`,sub:this.region.K.name,t0:this.time-this.rt};
       this.say(`区域 ${this.ri+1}　${this.region.K.name}に 入った`);
     }
-    this.fade=clamp(Math.max(1-this.rt/1.1,this.nextOk()?1-(this.dur-this.rt)/1.1:0),0,1);
-    if(this.ri===0&&this.rt<1.1)this.fade=0;
+    const F=Math.min(1.1,this.dur*.05);
+    this.fade=clamp(Math.max(1-this.rt/F,this.nextOk()?1-(this.dur-this.rt)/F:0),0,1);
+    if(this.ri===0&&this.rt<F)this.fade=0;
     for(const[k,t]of CRASH.msgs)if(t0<ti+k&&ti+k<=this.time)this.say(t);
     if(this.time>ti-4){this.region.prune(Math.floor(-this.z/SEG));return;}
     while(this.time>=this.nextMsg){
@@ -613,7 +617,7 @@ class Space3D{
       eye=[ship[0],ship[1]+.2,ship[2]];const t=P(z-22);target=[t[0],t[1]+.2,t[2]];
       up=rollUp(norm(sub(target,eye)),bank*.55);
     }
-    const proj=persp((look.aspect==='16:9'?58:62)*Math.PI/180,w/h,.1,far),vp=mul(proj,lookAt(eye,target,up));
+    const proj=persp((look.aspect==='16:9'?58:62+Math.max(0,1.2-w/h)*35)*Math.PI/180,w/h,.1,far),vp=mul(proj,lookAt(eye,target,up));
     const wire=look.wire,pal=R.pal;
     // 空
     let hor=[0,0,0],zen=[0,0,0],fog=[0,0,0];
@@ -676,6 +680,9 @@ const LINES={white:[236,236,232],green:[96,255,128],amber:[255,184,64],cyan:[120
 const PIXELS={full:0,low:240,lower:120};
 function layout(W,H,deco){
   if(!deco)return{view:{x:0,y:0,w:W,h:H}};
+  // 正方形・縦長は、景色を上に大きく、計器と文字の欄を下に並べる（地図は省く）
+  if(W/H<1.2){const m=Math.round(H*.03),vh=Math.round(H*.58),by=m*2+vh,bh=H-by-m,pw=Math.round((W-m*3)*.6);
+    return{view:{x:m,y:m,w:W-m*2,h:vh},party:{x:m,y:by,w:pw,h:bh},msg:{x:m*2+pw,y:by,w:W-pw-m*3,h:bh}};}
   const m=Math.round(H*.04),rw=Math.round(W*.28),vw=W-rw-m*3,vh=Math.round(H*.6),by=m*2+vh,bh=H-by-m;
   return{view:{x:m,y:m,w:vw,h:vh},map:{x:m*2+vw,y:m,w:rw,h:vh},party:{x:m,y:by,w:vw,h:bh},msg:{x:m*2+vw,y:by,w:rw,h:bh}};
 }
@@ -696,14 +703,14 @@ function lookFor(sim){
 }
 let view3d;
 function drawFrame(g,W,H,sim,look){
-  const L=layout(W,H,cfg.deco),s=H/480,v=L.view,FONT='"DotGothic16",monospace';
+  const L=layout(W,H,cfg.deco),s=Math.min(H,W*.75)/480,v=L.view,FONT='"DotGothic16",monospace';
   g.fillStyle='#000';g.fillRect(0,0,W,H);
   if(cfg.deco&&!look.wire){
     const bgr=g.createLinearGradient(0,0,0,H);bgr.addColorStop(0,'#05070d');bgr.addColorStop(1,'#0b0e18');g.fillStyle=bgr;g.fillRect(0,0,W,H);
     g.strokeStyle=rgb(look.acc,.05);g.lineWidth=1;const gs=Math.round(s*24);
     for(let x=0;x<W;x+=gs){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke();}
     for(let y=0;y<H;y+=gs){g.beginPath();g.moveTo(0,y+.5);g.lineTo(W,y+.5);g.stroke();}
-    sciBox(g,v,look.acc,s,true);for(const r of[L.map,L.party,L.msg])sciBox(g,r,look.acc,s,false);
+    sciBox(g,v,look.acc,s,true);for(const r of[L.map,L.party,L.msg].filter(Boolean))sciBox(g,r,look.acc,s,false);
   }
   const ph=PIXELS[cfg.pixel];let ih=ph?Math.min(v.h,ph):v.h;const iw=Math.max(2,Math.round(ih*v.w/v.h));ih=Math.round(ih);
   view3d.render(iw,ih,sim,look);
@@ -760,7 +767,7 @@ function drawFrame(g,W,H,sim,look){
   }
   if(look.wire){
     box(g,{x:v.x-Math.round(s*6),y:v.y-Math.round(s*6),w:v.w+Math.round(s*12),h:v.h+Math.round(s*12)},col,s);
-    for(const r of[L.map,L.party,L.msg])box(g,r,col,s);
+    for(const r of[L.map,L.party,L.msg].filter(Boolean))box(g,r,col,s);
   }
   const pad=Math.round(s*(look.wire?12:13)),fs=Math.max(8,Math.floor(Math.min((L.party.h-pad*2)/6*.62,s*15)));
   g.font=`${fs}px ${FONT}`;g.textBaseline='top';
@@ -779,7 +786,7 @@ function drawFrame(g,W,H,sim,look){
       }else{g.fillStyle=col;g.fillText(txt,bx,y);}
     });}
   // レーダー
-  {const r=L.map,{R,z,ship}=sim.pose();
+  if(L.map){const r=L.map,{R,z,ship}=sim.pose();
     g.fillStyle=rgb(look.acc);g.fillText('レーダー',r.x+pad,r.y+pad);
     g.textAlign='right';g.fillStyle=col;g.fillText(fmt(sim.time),r.x+r.w-pad,r.y+pad);g.textAlign='left';
     const top=r.y+pad+fs*1.8,aw=r.w-pad*2,ah=r.y+r.h-pad-top,rad=Math.min(aw,ah)/2*.94,cx=r.x+pad+aw/2,cy=top+ah/2,RNG=160;
@@ -841,24 +848,25 @@ function wrapText(g,t,w){
 // いまの歌詞（曲が繰り返すなら歌詞も頭から）
 function lyricState(sim){
   if(!cfg.lyrics||!snd||!snd.lyrics||!snd.lyrics.length)return null;
-  const t=sim.time%snd.buf.duration,L=snd.lyrics;let k=-1;
+  const t=(sim.time+aoff())%snd.buf.duration,L=snd.lyrics;let k=-1;
   for(let i=0;i<L.length&&L[i].t0<=t;i++)k=i;
   return{t,k,L,active:k>=0&&t<L[k].t1?L[k]:null};
 }
 function fitText(g,t,w){if(g.measureText(t).width<=w)return t;while(t.length&&g.measureText(t+'…').width>w)t=t.slice(0,-1);return t+'…';}
 
 // ---------- 設定 ----------
-const RES={'4:3':[['640x480','640×480'],['960x720','960×720'],['1440x1080','1440×1080']],'16:9':[['1280x720','1280×720'],['1920x1080','1920×1080']]};
+const RES={'4:3':[['640x480','640×480'],['960x720','960×720'],['1440x1080','1440×1080']],'16:9':[['1280x720','1280×720'],['1920x1080','1920×1080']],
+  '1:1':[['720x720','720×720'],['1080x1080','1080×1080']],'4:5':[['864x1080','864×1080'],['1080x1350','1080×1350']]};
 const OPTS={
-  aspect:[['4:3','4:3'],['16:9','16:9']],
+  aspect:[['4:3','4:3'],['16:9','16:9'],['1:1','1:1'],['4:5','4:5（縦長）']],
   style:[['solid','ポリゴン'],['wire','線画']],
   line:[['auto','景色ごと'],['white','白'],['green','緑'],['amber','琥珀'],['cyan','水色'],['pink','桃']],
   view:[['chase','後ろから'],['cockpit','操縦席']],
   deco:[[true,'あり'],[false,'なし']],
   pixel:[['full','なめらか'],['low','粗い'],['lower','とても粗い']],
   speed:[['slow','ゆっくり'],['mid','ふつう'],['fast','はやい']],
-  regionLen:[[30,'30秒'],[60,'1分'],[120,'2分']],
-  minutes:[[1,'1分'],[3,'3分'],[5,'5分'],[10,'10分']],
+  regionLen:[[10,'10秒'],[15,'15秒'],[30,'30秒'],[60,'1分'],[120,'2分'],[240,'4分']],
+  minutes:[[.25,'15秒'],[.5,'30秒'],[1,'1分'],[3,'3分'],[5,'5分'],[10,'10分']],
   fps:[[30,'30コマ/秒'],[60,'60コマ/秒']],
   lyrics:[[true,'出す'],[false,'出さない']],
 };
@@ -876,10 +884,12 @@ let sim, playing=true, exporting=false, cancelled=false;
 // バッドエンドにする長さ（曲を入れてチェックしたときだけ。0 なら起こさない）
 const endAtFor=sec=>snd&&cfg.badEnd&&sec>=CRASH.min?sec:0;
 const newSim=()=>new Sim({seed:cfg.seed,speed:cfg.speed,regionLen:cfg.regionLen,scenes:cfg.scenes,cfg,endAt:endAtFor(cfg.minutes*60)});
-function restart(){sim=newSim();player.sfxStop();if(snd&&playing)player.play(snd.buf,0);}
+function restart(){sim=newSim();player.sfxStop();if(snd&&playing)player.play(snd.buf,aoff());}
 
 // ---------- 音 ----------
 let snd=null;
+// 曲のどこから使うか（秒）。プレビュー・歌詞・書き出しの音をそろえてずらす
+const aoff=()=>snd?clamp(cfg.aoff||0,0,Math.max(0,snd.buf.duration-1)):0;
 const AINFO='入れると、その音付きで書き出します。長さは曲に合わせます。曲より長くすると頭から繰り返し、どちらの場合も最後の1.5秒で音を小さくして終えます。この画面に音のファイルを放り込んでも入ります。';
 // 被弾の音（警報→ミサイルの風切り→爆発）。lead 秒目が被弾の瞬間
 const SFX_LEAD=3.2,sfxCache=new Map();
@@ -1055,7 +1065,7 @@ async function loadAudio(file){
   try{lyrics=mp4Lyrics(await file.arrayBuffer());}catch(e){}
   clearAudio(true);
   snd={buf,name:file.name,lyrics};
-  cfg.minutes=Math.max(1,Math.floor(buf.duration))/60;save();renderUI();restart();showAudio();
+  cfg.aoff=0;cfg.minutes=Math.max(1,Math.floor(buf.duration))/60;save();renderUI();restart();showAudio();
 }
 function clearAudio(quiet){player.stop();snd=null;if(!quiet)showAudio();}
 function showAudio(){
@@ -1079,7 +1089,7 @@ function renderUI(){
   const re=$('#res');re.innerHTML='';
   for(const[v,label]of RES[cfg.aspect]){const b=document.createElement('button');b.className='chip'+(cfg.res===v?' on':'');b.textContent=label;
     b.onclick=()=>{cfg.res=v;save();renderUI();sizeCanvas();};re.appendChild(b);}
-  $('#seed').value=cfg.seed;$('#badend').checked=!!cfg.badEnd;$('#mins').value=fmt(Math.round(cfg.minutes*60));
+  $('#seed').value=cfg.seed;$('#aoff').value=fmt(cfg.aoff||0);$('#badend').checked=!!cfg.badEnd;$('#mins').value=fmt(Math.round(cfg.minutes*60));
 }
 function setupTabs(){
   const panel=$('#panel'),narrow=()=>matchMedia('(max-width:820px)').matches;
@@ -1105,7 +1115,7 @@ function loop(ts){
     const fx=sim.tImp-SFX_LEAD;
     if(playing&&pt<fx&&sim.time>=fx)player.sfx(sim.time-fx);
     if(sim.endAt&&sim.time>=sim.endAt){player.stop();if(sim.time>=sim.endAt+2.5)restart();}
-    else if(snd&&playing&&player.src){const D=snd.buf.duration,g=Math.abs(player.pos(snd.buf)-sim.time%D);if(Math.min(g,D-g)>.3)player.play(snd.buf,sim.time);}
+    else if(snd&&playing&&player.src){const D=snd.buf.duration,g=Math.abs(player.pos(snd.buf)-(sim.time+aoff())%D);if(Math.min(g,D-g)>.3)player.play(snd.buf,sim.time+aoff());}
     drawFrame(octx,out.width,out.height,sim,lookFor(sim));
     $('#clock').textContent=`${fmt(sim.time)}　区域${sim.ri+1}`;
   }
@@ -1181,10 +1191,10 @@ async function exportMp4(){
   // 動画のコマに追いつくまで音を流し込む（曲が短ければ頭から繰り返し、最後はしぼる）
   const feed=until=>{
     if(!aenc)return;
-    const L=snd.buf.length,src=[...Array(ach)].map((_,c)=>snd.buf.getChannelData(Math.min(c,snd.buf.numberOfChannels-1)));
+    const L=snd.buf.length,src=[...Array(ach)].map((_,c)=>snd.buf.getChannelData(Math.min(c,snd.buf.numberOfChannels-1))),a0=Math.round(aoff()*asr),IN=asr*.03;
     while(apos<until){
       const n=Math.min(4096,until-apos),data=new Float32Array(n*ach);
-      for(let c=0;c<ach;c++)for(let k=0;k<n;k++){const s=apos+k,rem=(atotal-s)/asr;data[c*n+k]=clamp(src[c][s%L]*(rem<FADE?rem/FADE:1)+(sfx&&s>=sfx0&&s-sfx0<sfx.length?sfx[s-sfx0]:0),-1,1);}
+      for(let c=0;c<ach;c++)for(let k=0;k<n;k++){const s=apos+k,rem=(atotal-s)/asr;data[c*n+k]=clamp(src[c][(s+a0)%L]*(rem<FADE?rem/FADE:1)*(a0&&s<IN?s/IN:1)+(sfx&&s>=sfx0&&s-sfx0<sfx.length?sfx[s-sfx0]:0),-1,1);}
       const ad=new AudioData({format:'f32-planar',sampleRate:asr,numberOfFrames:n,numberOfChannels:ach,timestamp:Math.round(apos/asr*1e6),data});
       aenc.encode(ad);ad.close();apos+=n;
     }
@@ -1222,7 +1232,7 @@ async function exportMp4(){
     console.error(e);$('#progt').textContent='書き出しに失敗しました: '+(e.message||e);
     try{enc.close();}catch(_){}try{if(aenc)aenc.close();}catch(_){}if(stream)stream.abort().catch(()=>{});
   }finally{
-    exporting=false;document.body.classList.remove('lock');if(snd&&playing)player.play(snd.buf,sim.time);$('#go').disabled=false;$('#cancel').style.display='none';
+    exporting=false;document.body.classList.remove('lock');if(snd&&playing)player.play(snd.buf,sim.time+aoff());$('#go').disabled=false;$('#cancel').style.display='none';
   }
 }
 
@@ -1230,7 +1240,7 @@ async function exportMp4(){
 try{view3d=new Space3D();}catch(e){document.body.innerHTML='<p style="padding:24px">このブラウザでは3D表示が使えません。</p>';throw e;}
 renderUI();setupTabs();sizeCanvas();restart();
 $('#ver').textContent='v'+VERSION;
-$('#play').onclick=()=>{playing=!playing;$('#play').textContent=playing?'❚❚':'▶';player.sfxStop();if(snd){if(playing&&!(sim.endAt&&sim.time>=sim.endAt))player.play(snd.buf,sim.time);else player.stop();}};
+$('#play').onclick=()=>{playing=!playing;$('#play').textContent=playing?'❚❚':'▶';player.sfxStop();if(snd){if(playing&&!(sim.endAt&&sim.time>=sim.endAt))player.play(snd.buf,sim.time+aoff());else player.stop();}};
 $('#afile').onchange=e=>{const f=e.target.files[0];if(f)loadAudio(f);e.target.value='';};
 $('#aclear').onclick=()=>clearAudio();
 $('#badend').onchange=e=>{cfg.badEnd=e.target.checked;save();};
@@ -1242,6 +1252,12 @@ addEventListener('drop',e=>{e.preventDefault();
 $('#restart').onclick=restart;
 $('#seed').onchange=e=>{const v=clamp(parseInt(e.target.value)||1,1,999999);cfg.seed=v;save();renderUI();restart();};
 $('#dice').onclick=()=>{cfg.seed=1+((Math.random()*999999)|0);save();renderUI();restart();};
+$('#aoff').onchange=e=>{
+  // 「1:05」なら分:秒、ただの数字なら秒として読む。曲の残りより長さが長ければ、残りに合わせる
+  const t=e.target.value.trim().replace(/：/g,':'),q=t.split(':').map(Number);
+  const sec=q.some(isNaN)?NaN:q.length===1?q[0]:q.length===2?q[0]*60+q[1]:NaN;
+  if(isFinite(sec)&&sec>=0){cfg.aoff=Math.round(sec);if(snd){cfg.aoff=Math.min(cfg.aoff,Math.max(0,Math.floor(snd.buf.duration)-1));const rest=Math.floor(snd.buf.duration-cfg.aoff);if(cfg.minutes*60>rest)cfg.minutes=Math.max(1,rest)/60;}}
+  save();renderUI();restart();};
 $('#mins').onchange=e=>{
   // 「3:19」「1:02:30」なら時:分:秒、ただの数字なら分として読む
   const t=e.target.value.trim().replace(/：/g,':'),p=t.split(':').map(Number);
