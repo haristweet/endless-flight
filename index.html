@@ -124,7 +124,7 @@ input[type=number]{width:110px;background:#1b1b20;border:1px solid var(--line);b
 <script src="mp4-muxer.js"></script>
 <script>
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 
 // ---------- 乱数・小道具 ----------
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -434,12 +434,15 @@ class Sim{
   // バッドエンドのミサイル。tau は被弾してからの秒（前はマイナス）。ミサイルは航路に沿ってこちらへ飛ぶ（+z）
   crash(){
     const ti=this.tImp;if(this.time<ti-CRASH.lead)return null;
-    const tau=this.time-ti,{z,P,ship}=this.pose(),mz=z-6+Math.min(0,tau)*(CRASH.v+this.speed);
-    return{tau,z:mz,pos:P(mz),dir:norm(sub(P(mz+1),P(mz))),at:ship};
+    // 真正面からだと点にしか見えないので、斜め前の上から回り込ませる（左右は番号で決める）
+    const tau=this.time-ti,{z,P,ship}=this.pose(),side=hash(this.seed,57)&1?1:-1;
+    const at=t=>{const dz=6-Math.min(0,t)*(CRASH.v+this.speed),p=P(z-dz);return[p[0]+side*dz*.3,p[1]+dz*.13,z-dz];};
+    const pos=at(tau);
+    return{tau,z:pos[2],pos,dir:norm(sub(at(Math.min(0,tau)+.02),at(Math.min(0,tau)))),at:ship};
   }
 }
 // バッドエンド：lead 秒前にミサイルが来て、終わりの end 秒前に被弾する。min 秒より短い書き出しでは起こさない
-const CRASH={lead:3.6,end:2.6,min:10,v:40,
+const CRASH={lead:3.6,end:2.6,min:10,v:16,
   msgs:[[-3.4,'警告　ミサイル接近'],[-2.2,'回避 不能'],[-.7,'被弾する！'],[1.1,'……応答せよ']]};
 
 // ---------- 3D 描画（WebGL2） ----------
@@ -534,7 +537,8 @@ function missileMesh(){
   for(let k=0;k<4;k++){const a=k*Math.PI/2+.785,c=Math.cos(a),s=Math.sin(a);
     m.tri([c*.4,s*.4,-2.5],[c*1.3,s*1.3,-2.7],[c*.4,s*.4,-1.4],dk);m.tri([c*.4,s*.4,.6],[c*.9,s*.9,.4],[c*.4,s*.4,1.2],dk);}
   m.oct(0,0,-2.9,.38,.38,C(255,250,210),1);
-  for(let k=0;k<6;k++){const r=.5-k*.06;m.oct(0,0,-3.6-k*1.3,r,r,[1,.75-k*.08,.35-k*.05],1);}
+  // 長く光る噴射の尾（遠くからでも来るのが分かるように）
+  for(let k=0;k<14;k++){const r=.62-k*.036;m.oct(0,0,-3.6-k*1.4,r,r,[1,Math.max(.3,.8-k*.04),Math.max(.12,.4-k*.025)],1);}
   return new Float32Array(m.v);
 }
 // 爆発（中心が原点）。火の玉は大きくなって暗くなり、破片は散る。地上では破片が落ちる
@@ -718,7 +722,8 @@ function drawFrame(g,W,H,sim,look){
     g.fillStyle=`rgba(255,60,50,${a})`;g.fillText('WARNING　ミサイル接近',v.x+v.w/2,v.y+fs*1.4);g.textAlign='left';
   }
   if(hit>0){
-    if(hit<.08){g.fillStyle='rgba(255,255,240,.92)';g.fillRect(v.x,v.y,v.w,v.h);}
+    // ぶつかった瞬間の光は弱めにして、なめらかに引かせる（パッと点いて消える明滅にしない）
+    {const fl=1-smooth(clamp(hit/.3,0,1));if(fl>0){g.fillStyle=`rgba(255,250,235,${.5*fl})`;g.fillRect(v.x,v.y,v.w,v.h);}}
     g.fillStyle=`rgba(255,110,20,${.45*Math.exp(-hit*2)})`;g.fillRect(v.x,v.y,v.w,v.h);
     g.fillStyle=`rgba(160,0,0,${.25*smooth(clamp((hit-.6)/.8,0,1))})`;g.fillRect(v.x,v.y,v.w,v.h);
     const dark=smooth(clamp((hit-1.1)/.6,0,1));
